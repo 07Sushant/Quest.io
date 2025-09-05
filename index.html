@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ask for Solutions - AI Search Engine</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            overflow-x: hidden;
+            cursor: none;
+        }
+
+        /* Custom Cursor */
+        .cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            pointer-events: none;
+            z-index: 9999;
+            transition: all 0.1s ease;
+            mix-blend-mode: difference;
+        }
+
+        .cursor.hover {
+            transform: scale(2);
+            background: rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.5);
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .bg-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        .bg-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(40px);
+            opacity: 0.4;
+            animation: float 15s ease-in-out infinite;
+        }
+
+        .bg-orb:nth-child(1) {
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.4), transparent);
+            top: 10%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+
+        .bg-orb:nth-child(2) {
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.3), transparent);
+            top: 60%;
+            right: 20%;
+            animation-delay: -5s;
+        }
+
+        .bg-orb:nth-child(3) {
+            width: 250px;
+            height: 250px;
+            background: radial-gradient(circle, rgba(34, 197, 94, 0.3), transparent);
+            bottom: 20%;
+            left: 30%;
+            animation-delay: -10s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) translateX(0px) scale(1); }
+            25% { transform: translateY(-30px) translateX(20px) scale(1.1); }
+            50% { transform: translateY(-10px) translateX(-30px) scale(0.9); }
+            75% { transform: translateY(-40px) translateX(10px) scale(1.05); }
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 20px 30px;
+            background: rgba(10, 10, 10, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .logo-icon:hover {
+            transform: rotate(180deg) scale(1.1);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+        }
+
+        .nav-items {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-item {
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+            padding: 8px 16px;
+            border-radius: 20px;
+        }
+
+        .nav-item:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .nav-item::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 50%;
+            width: 0;
+            height: 2px;
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            transition: all 0.3s ease;
+            transform: translateX(-50%);
+        }
+
+        .nav-item:hover::after {
+            width: 100%;
+        }
+
+        /* Main Container */
+        .main-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 100px 20px 50px;
+        }
+
+        .search-section {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .main-title {
+            font-size: clamp(2.5rem, 8vw, 4.5rem);
+            font-weight: 700;
+            margin-bottom: 2rem;
+            background: linear-gradient(135deg, #ffffff, #a1a1aa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: titleGlow 3s ease-in-out infinite;
+            letter-spacing: -0.02em;
+        }
+
+        @keyframes titleGlow {
+            0%, 100% { 
+                background: linear-gradient(135deg, #ffffff, #a1a1aa);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+            50% { 
+                background: linear-gradient(135deg, #6366f1, #a855f7, #ffffff);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+        }
+
+        /* Search Container */
+        .search-container {
+            position: relative;
+            margin-bottom: 3rem;
+        }
+
+        .search-wrapper {
+            position: relative;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .search-input-container {
+            position: relative;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            padding: 4px;
+            backdrop-filter: blur(20px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+        }
+
+        .search-input-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.1), transparent);
+            transition: left 0.6s ease;
+        }
+
+        .search-input-container:hover::before {
+            left: 100%;
+        }
+
+        .search-input-container:focus-within {
+            border-color: rgba(99, 102, 241, 0.5);
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2), 0 0 40px rgba(99, 102, 241, 0.1);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .search-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            outline: none;
+            padding: 18px 60px 18px 24px;
+            font-size: 16px;
+            color: #ffffff;
+            font-weight: 400;
+            letter-spacing: 0.01em;
+        }
+
+        .search-input::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .search-button {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .search-button:hover {
+            transform: translateY(-50%) scale(1.05);
+            box-shadow: 0 6px 25px rgba(99, 102, 241, 0.4);
+        }
+
+        .search-button:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+
+        .search-button svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        /* Suggestion Pills */
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 3rem;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: suggestionsSlide 0.6s ease-out 0.8s forwards;
+        }
+
+        @keyframes suggestionsSlide {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .suggestion-pill {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            padding: 10px 20px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .suggestion-pill::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .suggestion-pill:hover::before {
+            left: 100%;
+        }
+
+        .suggestion-pill:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(99, 102, 241, 0.3);
+            color: #ffffff;
+            transform: translateY(-2px);
+        }
+
+        .suggestion-pill .icon {
+            display: inline-block;
+            margin-right: 8px;
+            font-size: 12px;
+        }
+
+        /* Search Mode Selector */
+        .search-mode {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 2rem;
+        }
+
+        .mode-selector {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 30px;
+            padding: 4px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .mode-option {
+            padding: 8px 16px;
+            border-radius: 26px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mode-option.active {
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            color: #ffffff;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .mode-option:not(.active) {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .mode-option:not(.active):hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Results Section */
+        .results-section {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 50px 20px;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .results-section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .ai-response {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(20px);
+        }
+
+        .ai-response::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: linear-gradient(45deg, #6366f1, #a855f7, #6366f1);
+            border-radius: 20px;
+            z-index: -1;
+            opacity: 0.3;
+            animation: borderGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes borderGlow {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+
+        .ai-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #6366f1;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .ai-content {
+            font-size: 16px;
+            line-height: 1.7;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .result-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+            transition: left 0.6s ease;
+        }
+
+        .result-item:hover::before {
+            left: 100%;
+        }
+
+        .result-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(99, 102, 241, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .result-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .result-url {
+            font-size: 14px;
+            color: #22c55e;
+            margin-bottom: 12px;
+            opacity: 0.8;
+        }
+
+        .result-description {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.5;
+        }
+
+        /* Loading Animation */
+        .loading-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+            margin: 40px 0;
+        }
+
+        .loading-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            animation: loadingPulse 1.5s ease-in-out infinite;
+        }
+
+        .loading-dot:nth-child(1) { animation-delay: 0s; }
+        .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes loadingPulse {
+            0%, 100% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .header-content {
+                padding: 0 20px;
+            }
+            
+            .nav-items {
+                display: none;
+            }
+            
+            .main-container {
+                padding: 80px 20px 30px;
+            }
+            
+            .suggestions {
+                justify-content: flex-start;
+                overflow-x: auto;
+                padding-bottom: 10px;
+            }
+            
+            .suggestion-pill {
+                flex-shrink: 0;
+            }
+        }
+
+        /* Scroll Indicator */
+        .scroll-indicator {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 50px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 8px;
+            opacity: 0;
+            animation: scrollIndicatorFade 2s ease-in-out 2s forwards;
+        }
+
+        .scroll-indicator::before {
+            content: '';
+            width: 4px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 2px;
+            animation: scrollDot 2s ease-in-out infinite;
+        }
+
+        @keyframes scrollIndicatorFade {
+            to { opacity: 1; }
+        }
+
+        @keyframes scrollDot {
+            0%, 100% { transform: translateY(0); opacity: 1; }
+            50% { transform: translateY(15px); opacity: 0.3; }
+        }
+    </style>
+</head>
+<body>
+    <div class="cursor"></div>
+    
+    <div class="bg-animation">
+        <div class="bg-grid"></div>
+        <div class="bg-orb"></div>
+        <div class="bg-orb"></div>
+        <div class="bg-orb"></div>
+    </div>
+
+    <header class="header">
+        <div class="header-content">
+            <div class="logo-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+                </svg>
+            </div>
+            <nav class="nav-items">
+                <a href="#" class="nav-item">Home</a>
+                <a href="#" class="nav-item">About</a>
+                <a href="#" class="nav-item">Features</a>
+                <a href="#" class="nav-item">Contact</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="search-section">
+            <h1 class="main-title">Ask for Solutions</h1>
+            
+            <div class="search-container">
+                <div class="search-wrapper">
+                    <div class="search-input-container">
+                        <input type="text" class="search-input" placeholder="Help me understand xyz latest controversy" id="searchInput">
+                        <button class="search-button" onclick="performSearch()">
+                            <svg viewBox="0 0 24 24">
+                                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="suggestions">
+                <div class="suggestion-pill" onclick="searchSuggestion('solve leetcode problems')">
+                    <span class="icon">🧮</span>
+                    Solve Leetcode 3Sum problem
+                </div>
+                <div class="suggestion-pill" onclick="searchSuggestion('weather around me')">
+                    <span class="icon">🌤️</span>
+                    Weather around me
+                </div>
+                <div class="suggestion-pill" onclick="searchSuggestion('create podcast')">
+                    <span class="icon">🎙️</span>
+                    Create photo a cat doing podcast
+                </div>
+                <div class="suggestion-pill" onclick="searchSuggestion('whats happening')">
+                    <span class="icon">📰</span>
+                    What's happening
+                </div>
+                <div class="suggestion-pill" onclick="searchSuggestion('rocket science')">
+                    <span class="icon">🚀</span>
+                    Help me understand a Rocket Science
+                </div>
+                <div class="suggestion-pill" onclick="searchSuggestion('whats going on')">
+                    <span class="icon">🔍</span>
+                    What's going on in tech
+                </div>
+            </div>
+
+            <div class="search-mode">
+                <div class="mode-selector">
+                    <div class="mode-option active" onclick="setMode('web')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="2" y1="12" x2="22" y2="12"/>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                        </svg>
+                        General Web
+                    </div>
+                    <div class="mode-option" onclick="setMode('ai')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+                        </svg>
+                        AI Mode
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="scroll-indicator"></div>
+
+    <div class="results-section" id="resultsSection">
+        <!-- Results will be populated here -->
+    </div>
+
+    <script>
+        let currentMode = 'web';
+        let isSearching = false;
+        
+        // Custom cursor
+        const cursor = document.querySelector('.cursor');
+        let mouseX = 0, mouseY = 0;
+        let cursorX = 0, cursorY = 0;
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        function animateCursor() {
+            cursorX += (mouseX - cursorX) * 0.1;
+            cursorY += (mouseY - cursorY) * 0.1;
+            cursor.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+            requestAnimationFrame(animateCursor);
+        }
+        animateCursor();
+
+        // Add hover effects
+        document.addEventListener('mouseover', (e) => {
+            if (e.target.matches('button, .suggestion-pill, .mode-option, .nav-item, .result-item')) {
+                cursor.classList.add('hover');
+            }
+        });
+
+        document.addEventListener('mouseout', (e) => {
+            if (e.target.matches('button, .suggestion-pill, .mode-option, .nav-item, .result-item')) {
+                cursor.classList.remove('hover');
+            }
+        });
+
+        // Smooth scrolling
+        function smoothScrollTo(element, duration = 1000) {
+            const targetPosition = element.offsetTop - 100;
+            const startPosition = window.pageYOffset;
+            const distance = targetPosition - startPosition;
+            let startTime = null;
+
+            function animation(currentTime) {
+                if (startTime === null) startTime = currentTime;
+                const timeElapsed = currentTime - startTime;
+                const progress = Math.min(timeElapsed / duration, 1);
+                
+                const ease = progress < 0.5 
+                    ? 4 * progress * progress * progress 
+                    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+                
+                window.scrollTo(0, startPosition + distance * ease);
+                
+                if (timeElapsed < duration) {
+                    requestAnimationFrame(animation);
+                }
+            }
+            
+            requestAnimationFrame(animation);
+        }
+
+        // Search functionality
+        function performSearch() {
+            if (isSearching) return;
+            
+            const searchInput = document.getElementById('searchInput');
+            const query = searchInput.value.trim();
+            
+            if (!query) return;
+            
+            isSearching = true;
+            const resultsSection = document.getElementById('resultsSection');
+            
+            // Show loading
+            resultsSection.innerHTML = `
+                <div class="loading-container">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+            `;
+            
+            resultsSection.classList.add('visible');
+            smoothScrollTo(resultsSection);
+            
+            // Simulate search delay
+            setTimeout(() => {
+                displayResults(query);
+                isSearching = false;
+            }, 2000);
+        }
+
+        // Display search results
+        function displayResults(query) {
+            const resultsSection = document.getElementById('resultsSection');
+            
+            if (currentMode === 'ai') {
+                displayAIResults(query);
+            } else {
+                displayWebResults(query);
+            }
+        }
+
+        // Display AI mode results
+        function displayAIResults(query) {
+            const resultsSection = document.getElementById('resultsSection');
+            
+            const aiResponse = generateAIResponse(query);
+            const webResults = generateMockResults(query);
+            
+            resultsSection.innerHTML = `
+                <div class="ai-response">
+                    <div class="ai-badge">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+                        </svg>
+                        AI Response
+                    </div>
+                    <div class="ai-content">${aiResponse}</div>
+                </div>
+                <div class="results-list">
+                    ${webResults.map(result => `
+                        <div class="result-item" onclick="openResult('${result.url}')">
+                            <div class="result-title">${result.title}</div>
+                            <div class="result-url">${result.url}</div>
+                            <div class="result-description">${result.description}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Display web mode results
+        function displayWebResults(query) {
+            const resultsSection = document.getElementById('resultsSection');
+            const webResults = generateMockResults(query);
+            
+            resultsSection.innerHTML = `
+                <div class="results-list">
+                    ${webResults.map(result => `
+                        <div class="result-item" onclick="openResult('${result.url}')">
+                            <div class="result-title">${result.title}</div>
+                            <div class="result-url">${result.url}</div>
+                            <div class="result-description">${result.description}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // Generate AI response based on query
+        function generateAIResponse(query) {
+            const responses = {
+                'solve leetcode problems': 'To solve the 3Sum problem on LeetCode: Use a two-pointer approach. First, sort the array. Then iterate through each element and use two pointers to find pairs that sum to the negative of the current element. This reduces the time complexity from O(n³) to O(n²).',
+                'weather around me': 'I can help you understand weather patterns! Weather information typically includes temperature, humidity, precipitation, and wind conditions. For real-time weather data, you would need to integrate with a weather API like OpenWeatherMap or AccuWeather.',
+                'create podcast': 'Creating a podcast involves several steps: 1) Choose your niche and format, 2) Invest in quality audio equipment, 3) Plan your content and episodes, 4) Record in a quiet environment, 5) Edit your audio, 6) Choose a hosting platform, 7) Submit to podcast directories like Apple Podcasts and Spotify.',
+                'whats happening': 'To stay updated with current events, I recommend checking reputable news sources, following industry leaders on social media, and setting up Google Alerts for topics you\'re interested in. The news landscape changes rapidly, so multiple sources help provide a complete picture.',
+                'rocket science': 'Rocket science involves understanding Newton\'s laws of motion, particularly the third law (action-reaction). Rockets work by expelling mass (fuel) at high velocity in one direction, creating thrust in the opposite direction. Key concepts include specific impulse, delta-v, and the rocket equation.',
+                'whats going on': 'The tech industry is constantly evolving with trends in AI/ML, cloud computing, cybersecurity, and sustainable technology. Major areas of focus include generative AI, quantum computing, edge computing, and green tech solutions.'
+            };
+            
+            const lowerQuery = query.toLowerCase();
+            for (const [key, response] of Object.entries(responses)) {
+                if (lowerQuery.includes(key) || key.includes(lowerQuery)) {
+                    return response;
+                }
+            }
+            
+            return `Based on your query about "${query}", here are some insights: This is a complex topic that requires careful analysis. I recommend breaking it down into smaller components and researching each aspect thoroughly. Consider multiple perspectives and reliable sources to get a comprehensive understanding.`;
+        }
+
+        // Generate mock search results
+        function generateMockResults(query) {
+            const baseResults = [
+                {
+                    title: `Understanding ${query} - Complete Guide`,
+                    url: `https://example.com/${query.replace(/\s+/g, '-').toLowerCase()}`,
+                    description: `Comprehensive guide covering all aspects of ${query}. Learn the fundamentals, best practices, and advanced techniques from industry experts.`
+                },
+                {
+                    title: `${query} Tutorial - Step by Step`,
+                    url: `https://tutorial.com/${query.replace(/\s+/g, '-').toLowerCase()}`,
+                    description: `Step-by-step tutorial for ${query}. Perfect for beginners and intermediate learners looking to master this topic.`
+                },
+                {
+                    title: `Latest Updates on ${query}`,
+                    url: `https://news.com/${query.replace(/\s+/g, '-').toLowerCase()}`,
+                    description: `Stay updated with the latest news, trends, and developments related to ${query}. Expert analysis and insights.`
+                },
+                {
+                    title: `${query} Best Practices and Tips`,
+                    url: `https://bestpractices.com/${query.replace(/\s+/g, '-').toLowerCase()}`,
+                    description: `Discover proven strategies and best practices for ${query}. Tips from professionals and industry leaders.`
+                },
+                {
+                    title: `Common Mistakes in ${query}`,
+                    url: `https://mistakes.com/${query.replace(/\s+/g, '-').toLowerCase()}`,
+                    description: `Learn about common pitfalls and how to avoid them when dealing with ${query}. Practical advice and solutions.`
+                }
+            ];
+            
+            return baseResults;
+        }
+
+        // Search suggestion handler
+        function searchSuggestion(suggestion) {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = suggestion;
+            performSearch();
+        }
+
+        // Mode selector handler
+        function setMode(mode) {
+            currentMode = mode;
+            
+            // Update active mode
+            document.querySelectorAll('.mode-option').forEach(option => {
+                option.classList.remove('active');
+            });
+            
+            document.querySelector(`.mode-option[onclick="setMode('${mode}')"]`).classList.add('active');
+            
+            // If there are already results, refresh them with new mode
+            const resultsSection = document.getElementById('resultsSection');
+            if (resultsSection.classList.contains('visible') && resultsSection.innerHTML.trim() !== '') {
+                const searchInput = document.getElementById('searchInput');
+                if (searchInput.value.trim()) {
+                    displayResults(searchInput.value.trim());
+                }
+            }
+        }
+
+        // Open result in new tab
+        function openResult(url) {
+            window.open(url, '_blank');
+        }
+
+        // Enter key support for search
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        // Auto-hide scroll indicator when scrolling
+        let scrollIndicatorTimeout;
+        window.addEventListener('scroll', () => {
+            const scrollIndicator = document.querySelector('.scroll-indicator');
+            if (window.scrollY > 100) {
+                scrollIndicator.style.opacity = '0';
+            } else {
+                scrollIndicator.style.opacity = '1';
+            }
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && !e.target.matches('input, textarea')) {
+                e.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
+            
+            if (e.key === 'Escape') {
+                document.getElementById('searchInput').blur();
+            }
+        });
+
+        // Search input focus effects
+        const searchInput = document.getElementById('searchInput');
+        searchInput.addEventListener('focus', () => {
+            document.querySelector('.search-input-container').style.transform = 'scale(1.02)';
+        });
+
+        searchInput.addEventListener('blur', () => {
+            document.querySelector('.search-input-container').style.transform = 'scale(1)';
+        });
+
+        // Preload suggestions on page load
+        window.addEventListener('load', () => {
+            // Add subtle entrance animation to suggestions
+            const suggestions = document.querySelectorAll('.suggestion-pill');
+            suggestions.forEach((pill, index) => {
+                pill.style.animationDelay = `${0.8 + index * 0.1}s`;
+            });
+        });
+
+        // Error handling for failed searches
+        function handleSearchError(query) {
+            const resultsSection = document.getElementById('resultsSection');
+            resultsSection.innerHTML = `
+                <div class="ai-response">
+                    <div class="ai-badge">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        Error
+                    </div>
+                    <div class="ai-content">
+                        Sorry, there was an error processing your search for "${query}". Please try again or rephrase your query.
+                    </div>
+                </div>
+            `;
+            isSearching = false;
+        }
+    </script>
+</body>
+</html>

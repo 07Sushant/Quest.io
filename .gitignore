@@ -1,0 +1,39 @@
+# Node.js dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+
+# Cache
+.cache/
+.next/
+out/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Backend specific
+BACK/*.log
+BACK/*.sqlite
+BACK/*.db
+
+# Frontend specific
+FRONT/.parcel-cache/
+FRONT/.vercel/
