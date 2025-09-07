@@ -1,7 +1,7 @@
 # 🚨 Dear Recruiter 🚨
 
 # ⚠️ To prevent copy and malpractice, **only the project architecture is public**.  
-# The **entire codebase is kept private**.  
+# The **entire codebase is kept private**.  and also shared with the company in ZIP
 
 # 👉 To view the full project:  
 # - 📺 [Watch on YouTube](https://www.youtube.com/watch?v=dQw4w9WgXcQ) *(dummy link, replace with your video)*  
