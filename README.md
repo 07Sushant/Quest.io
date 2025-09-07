@@ -4,10 +4,10 @@
 # The **entire codebase is kept private**.  and also shared with the company in ZIP
 
 # 👉 To view the full project:  
-# - 📺 [Watch on YouTube](https://www.youtube.com/watch?v=dQw4w9WgXcQ) *(dummy link, replace with your video)*  
+# - 📺 [Watch on YouTube](https://youtu.be/eqwOkB9NeG4)  
 # - 📩 Or **request access** directly from me.  
 
-# [![Watch Demo](https://dummyimage.com/600x400/000/fff&text=▶+Watch+on+YouTube)](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+# [![Watch Demo](https://raw.githubusercontent.com/07Sushant/dump/main/P1%20-%20frame%20at%200m15s.jpg)](https://youtu.be/eqwOkB9NeG4)
 
 ---
 
