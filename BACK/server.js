@@ -6,6 +6,10 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Create HTTP server to attach WebSocket
+const http = require('http');
+const server = http.createServer(app);
+
 // Add request timing middleware
 app.use((req, res, next) => {
   req.startTime = Date.now();
@@ -93,12 +97,103 @@ app.use((error, req, res, next) => {
   });
 });
 
+// WebSocket bridge for Gemini Voice (Live audio) — voice-only change
+let WebSocketServer
+try {
+  WebSocketServer = require('ws').Server
+} catch (e) {
+  console.warn('ws package not installed; Gemini voice WS disabled')
+}
+
+if (WebSocketServer) {
+  const wss = new WebSocketServer({ server, path: '/ws/gemini-voice' })
+
+  wss.on('error', (err) => {
+    console.error('WS server error on /ws/gemini-voice:', err.message)
+  })
+
+  wss.on('connection', async (client, req) => {
+    console.log('WS client connected to /ws/gemini-voice from', req?.socket?.remoteAddress)
+    // Defer Live session creation until first message to avoid early close
+    let GoogleGenAI, Modality
+    let genai = null
+    let session = null
+
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) {
+      try { client.send(JSON.stringify({ type: 'error', message: 'Missing GEMINI_API_KEY' })) } catch {}
+      // Do not close immediately; let client display error UI
+    }
+
+    const ensureSession = async () => {
+      if (session) return true
+      if (!apiKey) return false
+      try {
+        if (!GoogleGenAI || !Modality) {
+          const genaiMod = await import('@google/genai')
+          GoogleGenAI = genaiMod.GoogleGenAI
+          Modality = genaiMod.Modality
+        }
+        genai = new GoogleGenAI({ apiKey })
+        session = await genai.live.connect({
+          model: 'gemini-2.5-flash-preview-native-audio-dialog',
+          callbacks: {
+            onopen: () => { try { client.send(JSON.stringify({ type: 'status', message: 'live-connected' })) } catch {} },
+            onmessage: (m) => { try { client.send(JSON.stringify(m)) } catch {} },
+            onerror: (e) => { try { client.send(JSON.stringify({ type: 'error', message: e?.message || 'live error' })) } catch {} },
+            onclose: (e) => { try { client.send(JSON.stringify({ type: 'status', message: 'live-closed', reason: e?.reason || '' })) } catch {} },
+          },
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Orus' } } },
+          },
+        })
+        return true
+      } catch (e) {
+        try { client.send(JSON.stringify({ type: 'error', message: 'Failed to initialize Gemini Live', detail: e?.message })) } catch {}
+        return false
+      }
+    }
+
+    client.on('message', async (data, isBinary) => {
+      try {
+        if (!(await ensureSession())) return
+
+        if (isBinary || Buffer.isBuffer(data)) {
+          const base64 = Buffer.from(data).toString('base64')
+          session.sendRealtimeInput({ media: { data: base64, mimeType: 'audio/pcm;rate=16000' } })
+          return
+        }
+
+        const text = data.toString('utf8')
+        let msg
+        try { msg = JSON.parse(text) } catch {}
+
+        if (msg?.media?.data && msg?.media?.mimeType) {
+          session.sendRealtimeInput({ media: msg.media })
+        } else if (msg) {
+          session.send(msg)
+        }
+      } catch (e) {
+        try { client.send(JSON.stringify({ type: 'error', message: e?.message || 'client message error' })) } catch {}
+      }
+    })
+
+    const safeClose = () => { try { session?.close() } catch {} }
+    client.on('close', safeClose)
+    client.on('error', safeClose)
+
+    try { client.send(JSON.stringify({ type: 'status', message: 'ws-connected' })) } catch {}
+  })
+}
+
 // Start server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Quest.io API Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
   console.log(`📊 API Status: http://localhost:${PORT}/`);
+  console.log(`🔊 WS: ws://localhost:${PORT}/ws/gemini-voice`)
 });
 
 module.exports = app;

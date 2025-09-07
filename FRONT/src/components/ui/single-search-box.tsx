@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Send, Mic, Globe, Brain, TrainFront, Image as ImageIcon, Zap, Sparkles, Volume2, Palette } from 'lucide-react'
+import GeminiVoiceModal from './gemini-voice-modal'
 
 interface SingleSearchBoxProps {
   onSearch: (query: string, mode: string, opts?: { files?: File[]; imageUrls?: string[]; previewUrls?: string[] }) => void
@@ -16,6 +17,9 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
   const [selectedMode, setSelectedMode] = useState('ai')
   const [isFocused, setIsFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Voice modal state
+  const [voiceOpen, setVoiceOpen] = useState(false)
 
   // Vision/Art local state for image inputs
   const [visionFiles, setVisionFiles] = useState<File[]>([])
@@ -150,13 +154,18 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
             return (
               <motion.button
                 key={mode.id}
-                onClick={() => setSelectedMode(mode.id)}
+                onClick={() => {
+                  setSelectedMode(mode.id)
+                  if (mode.id === 'voice') setVoiceOpen(true)
+                  else setVoiceOpen(false)
+                }}
                 className={`
                   relative px-4 py-3 rounded-2xl font-medium text-sm transition-all duration-300
                   ${selectedMode === mode.id 
                     ? 'text-white shadow-2xl scale-105' 
                     : 'text-foreground/70 hover:text-foreground hover:scale-105 bg-foreground/5 hover:bg-foreground/10 dark:text-white/70 dark:hover:text-white dark:bg-white/5 dark:hover:bg-white/10'
                   }
+                  ${mode.id === 'voice' && selectedMode === 'voice' ? 'ring-2 ring-purple-400/60 ring-offset-2 ring-offset-transparent' : ''}
                 `}
                 whileHover={{ y: -2 }}
                 whileTap={{ scale: 0.95 }}
@@ -178,6 +187,11 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
           })}
         </div>
       </motion.div>
+
+      {/* Voice Modal */}
+      {voiceOpen && selectedMode === 'voice' && (
+        <GeminiVoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
+      )}
 
       {/* Enhanced Search Input */}
       {/* Vision small inline previews row */}

@@ -106,6 +106,23 @@ export function SearchHero() {
     }))
   }
 
+  // Lock body scroll when modals are open to keep dialogs centered
+  useEffect(() => {
+    const anyModalOpen = showVoiceInterface || showImageGeneration
+    if (typeof document !== 'undefined') {
+      if (anyModalOpen) {
+        document.body.classList.add('overflow-hidden')
+      } else {
+        document.body.classList.remove('overflow-hidden')
+      }
+    }
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('overflow-hidden')
+      }
+    }
+  }, [showVoiceInterface, showImageGeneration])
+
   const detectSearchMode = (query: string) => {
     if (searchSettings.imageGeneration && 
         (query.toLowerCase().includes('generate') || 
@@ -505,7 +522,7 @@ export function SearchHero() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              className="bg-background/95 backdrop-blur-xl border border-white/10 rounded-2xl p-8 max-w-md w-full"
+              className="bg-background/95 backdrop-blur-xl border border-white/10 rounded-2xl p-8 max-w-md w-full max-h-[80vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <VoiceInterface

@@ -2,7 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 
-// WEB SEARCH ENDPOINT
+// WEB SEARCH ENDPOINT (Gemini grounded search with URL citations)
 router.post('/search', async (req, res) => {
   try {
     const { query, num_results = 10, safe_search = 'moderate', region = 'us', language = 'en' } = req.body;
@@ -14,37 +14,143 @@ router.post('/search', async (req, res) => {
       });
     }
 
-    console.log('🔍 Web search request:', {
-      query: query.substring(0, 100),
+    console.log('🔍 Web search request (Gemini grounded):', {
+      query: query.substring(0, 200),
       num_results,
       region,
-      language
+      language,
+      safe_search
     });
 
-    // Mock web search results (in production, integrate with actual search API)
-    const mockResults = generateMockSearchResults(query, num_results);
-    
-    // Generate AI insights about the search
-    const insights = await generateSearchInsights(query, mockResults);
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      // Fallback to previous mock behavior if key is missing
+      const mockResults = generateMockSearchResults(query, num_results);
+      const insights = await generateSearchInsights(query, mockResults);
+      return res.json({
+        query,
+        results: mockResults,
+        insights,
+        related_searches: generateRelatedSearches(query),
+        timestamp: new Date().toISOString(),
+        metadata: {
+          total_results: mockResults.length,
+          search_time: Math.random() * 0.5 + 0.1,
+          region,
+          language,
+          safe_search,
+          grounded: false
+        }
+      });
+    }
 
-    res.json({
-      query: query,
-      results: mockResults,
-      insights: insights,
-      related_searches: generateRelatedSearches(query),
+    // Lazy-load Google GenAI to avoid affecting other routes
+    let GoogleGenAI;
+    try {
+      ({ GoogleGenAI } = await import('@google/genai'));
+    } catch (e) {
+      console.error('Failed to import @google/genai:', e?.message);
+      return res.status(500).json({
+        error: 'Service not available',
+        message: 'AI provider not installed on server',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    // Tools configuration: urlContext + googleSearch
+    const tools = [
+      { urlContext: {} },
+      { googleSearch: {} }
+    ];
+
+    // Build a strict instruction to return JSON with citations
+    const systemInstruction = `You are a grounded web search assistant. Use Google Grounding with web results and cite URLs.
+Return a compact JSON object with keys: results (array of {title, url, snippet}), answer (string), related_searches (array of strings),
+and current (object with time and date in ISO). Do not include any extra keys or text outside JSON.`;
+
+    const userPrompt = `Query: ${query}\n
+- Language: ${language}\n- Region: ${region}\n- SafeSearch: ${safe_search}\n- MaxResults: ${Math.max(1, Math.min(25, Number(num_results) || 10))}\n
+Requirements:\n1) Use Google-grounded search.\n2) Provide 5-10 top results with titles, URLs, and concise snippets.\n3) Ensure each result includes a valid URL.\n4) Provide a concise answer summarizing key points.\n5) Include 5 related searches.\n6) Include current time/date.\n7) Respond ONLY with JSON.`;
+
+    // Prefer non-streaming for simpler server handling
+    let aiResponseText = '';
+    try {
+      const resp = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-lite',
+        config: {
+          thinkingConfig: { thinkingBudget: 0 },
+          tools
+        },
+        contents: [
+          { role: 'user', parts: [{ text: systemInstruction }] },
+          { role: 'user', parts: [{ text: userPrompt }] }
+        ]
+      });
+      // SDK typically exposes .text on response
+      aiResponseText = (resp?.text ?? '').trim();
+    } catch (e) {
+      console.error('Gemini grounded search error:', e?.message);
+      return res.status(502).json({
+        error: 'AI search failed',
+        message: 'Unable to query grounded search at this time',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Try to parse JSON; if it fails, degrade gracefully
+    let parsed;
+    try {
+      // Some models may wrap JSON in code fences; strip if present
+      const cleaned = aiResponseText
+        .replace(/^```(?:json)?/i, '')
+        .replace(/```$/i, '')
+        .trim();
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      // Fallback: produce minimal shape with raw text
+      parsed = {
+        results: [],
+        answer: aiResponseText || 'No structured response available.',
+        related_searches: generateRelatedSearches(query),
+        current: { time: new Date().toISOString(), date: new Date().toISOString().slice(0,10) }
+      };
+    }
+
+    // Validate and clamp results
+    const results = Array.isArray(parsed.results) ? parsed.results.slice(0, Math.max(1, Math.min(25, Number(num_results) || 10))) : [];
+    const normalizedResults = results
+      .filter(r => r && typeof r === 'object')
+      .map((r, i) => ({
+        title: String(r.title || `Result ${i+1}`),
+        url: String(r.url || ''),
+        snippet: String(r.snippet || ''),
+      }))
+      .filter(r => /^https?:\/\//i.test(r.url));
+
+    const responseBody = {
+      query,
+      results: normalizedResults,
+      insights: parsed.answer || '',
+      related_searches: Array.isArray(parsed.related_searches) && parsed.related_searches.length
+        ? parsed.related_searches.slice(0, 10)
+        : generateRelatedSearches(query),
       timestamp: new Date().toISOString(),
       metadata: {
-        total_results: mockResults.length,
-        search_time: Math.random() * 0.5 + 0.1, // Mock search time
-        region: region,
-        language: language,
-        safe_search: safe_search
-      }
-    });
+        total_results: normalizedResults.length,
+        region,
+        language,
+        safe_search,
+        grounded: true
+      },
+      current: parsed.current || { time: new Date().toISOString(), date: new Date().toISOString().slice(0,10) }
+    };
+
+    return res.json(responseBody);
 
   } catch (error) {
-    console.error('❌ Web search error:', error.message);
-    
+    console.error('❌ Web search error:', error?.message);
     res.status(500).json({
       error: 'Web search failed',
       message: 'Unable to perform web search at this time',
