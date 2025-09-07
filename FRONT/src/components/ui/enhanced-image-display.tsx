@@ -36,6 +36,8 @@ export function EnhancedImageDisplay({
   const [previewVisible] = useState(true) // Always show preview
   
   const getFullImageUrl = (url: string) => {
+    // Allow data URLs directly
+    if (url.startsWith('data:')) return url
     if (url.startsWith('http')) return url
     // If URL starts with '/', treat as absolute path on same origin and do not prepend base
     if (url.startsWith('/')) return url

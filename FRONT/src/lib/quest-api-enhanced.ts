@@ -304,6 +304,20 @@ class QuestAPIEnhanced {
     }
   }
 
+  // New: Art transform (image + prompt -> new image via Gemini)
+  async artTransform(params: { imageFile: File; prompt: string }): Promise<{ success: boolean; imageUrl: string; description?: string; mimeType: string; filename: string; model: string; timestamp: string }> {
+    try {
+      const form = new FormData()
+      form.append('image', params.imageFile)
+      form.append('prompt', params.prompt)
+      return await api.post('/art/transform', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    } catch (error) {
+      throw new Error('Failed to run art transform')
+    }
+  }
+
   async analyzeImage(request: ImageAnalysisRequest): Promise<ImageAnalysisResponse> {
     try {
       const formData = new FormData()
@@ -337,6 +351,24 @@ class QuestAPIEnhanced {
       return await api.post('/image-enhanced/search', { query, count })
     } catch (error) {
       throw new Error('Failed to search images')
+    }
+  }
+
+  async analyzeVision(params: { files?: File[]; imageUrls?: string[]; question: string }): Promise<{ success: boolean; text: string; descriptions: any[]; images: string[]; timestamp: string }> {
+    try {
+      const form = new FormData()
+      if (params.files?.length) {
+        params.files.slice(0, 4).forEach((f) => form.append('images', f))
+      }
+      if (params.imageUrls?.length) {
+        params.imageUrls.slice(0, 4).forEach((u) => form.append('imageUrls', u))
+      }
+      form.append('question', params.question || '')
+      return await api.post('/vision/analyze', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    } catch (error) {
+      throw new Error('Failed to analyze vision')
     }
   }
 

@@ -13,11 +13,12 @@ import questAPI from '@/lib/quest-api-enhanced'
 
 interface Message {
   id: string
-  type: 'user' | 'ai' | 'image' | 'web'
+  type: 'user' | 'ai' | 'image' | 'web' | 'vision'
   content: string
   htmlContent?: string // For formatted HTML content
   timestamp: Date
   imageUrl?: string
+  images?: string[]
   isGenerating?: boolean
   audioUrl?: string
 }
@@ -54,7 +55,7 @@ export function ChatInterface({ className = '', initialQuery, initialResponse }:
   }, [initialQuery, initialResponse, messages.length])
   const [input, setInput] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [currentMode, setCurrentMode] = useState<'ai' | 'web' | 'voice' | 'image'>('ai')
+  const [currentMode, setCurrentMode] = useState<'ai' | 'web' | 'voice' | 'image' | 'vision'>('ai')
   const [currentModel, setCurrentModel] = useState<'azure' | 'pollinations-openai'>('azure')
   const [pollinationsModel, setPollinationsModel] = useState<string>('llama-fast-roblox')
   const [isVoiceActive, setIsVoiceActive] = useState(false)
@@ -76,7 +77,7 @@ export function ChatInterface({ className = '', initialQuery, initialResponse }:
   }, [messages])
 
   // Detect message type from input
-  const detectMessageType = (text: string): 'ai' | 'web' | 'image' => {
+  const detectMessageType = (text: string): 'ai' | 'web' | 'image' | 'vision' => {
     const lowerText = text.toLowerCase()
     if (searchSettings.imageGeneration && 
         (lowerText.includes('generate') || lowerText.includes('create') || 
@@ -123,6 +124,8 @@ export function ChatInterface({ className = '', initialQuery, initialResponse }:
         await handleImageGeneration(userMessage.content, aiMessage.id)
       } else if (messageType === 'web') {
         await handleWebSearch(userMessage.content, aiMessage.id)
+      } else if (messageType === 'vision') {
+        await handleVision(userMessage.content, aiMessage.id)
       } else {
         await handleAIChat(userMessage.content, aiMessage.id)
       }
@@ -238,6 +241,68 @@ export function ChatInterface({ className = '', initialQuery, initialResponse }:
       ))
     } catch (error) {
       throw error
+    }
+  }
+
+  // Handle Vision (analyze up to 4 images + question)
+  const [visionFiles, setVisionFiles] = useState<File[]>([])
+  const [visionPreviews, setVisionPreviews] = useState<string[]>([])
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (currentMode !== 'vision') return
+    const items = e.clipboardData?.items
+    if (!items) return
+    const newFiles: File[] = []
+    for (const item of items as any) {
+      if (item.type?.startsWith('image/')) {
+        const blob = item.getAsFile?.()
+        if (blob) newFiles.push(new File([blob], `pasted-${Date.now()}.png`, { type: blob.type }))
+      }
+    }
+    if (newFiles.length) addVisionFiles(newFiles)
+  }
+
+  const addVisionFiles = (files: File[]) => {
+    const merged = [...visionFiles, ...files].slice(0, 4)
+    setVisionFiles(merged)
+    const urls = merged.map(f => URL.createObjectURL(f))
+    setVisionPreviews(urls)
+
+    // Also push a user message showing previews immediately for chat-like flow
+    const previewMsg: Message = {
+      id: `user-vision-${Date.now()}`,
+      type: 'user',
+      content: '(attached images)',
+      timestamp: new Date(),
+      images: urls
+    }
+    setMessages(prev => [...prev, previewMsg])
+  }
+
+  const removeVisionFile = (idx: nuSmber) => {
+    const next = visionFiles.filter((_, i) => i !== idx)
+    setVisionFiles(next)
+    const urls = next.map(f => URL.createObjectURL(f))
+    setVisionPreviews(urls)
+  }
+
+  const handleVision = async (content: string, messageId: string) => {
+    try {
+      // 1) Show user message with any attached images preview (already visible above input)
+      setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, content: 'Analyzing images...', isGenerating: true } : msg))
+
+      // 2) Call backend to describe images via /openai then craft answer via /:prompt
+      const resp = await questAPI.analyzeVision({ files: visionFiles, question: content })
+
+      // 3) Build final assistant message
+      const assistantText = resp?.text || 'Done.'
+      setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, content: assistantText, isGenerating: false } : msg))
+
+      // 4) Clear selection after send
+      setVisionFiles([])
+      setVisionPreviews([])
+    } catch (e) {
+      setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, content: 'Vision analysis failed.', isGenerating: false } : msg))
     }
   }
 
@@ -549,12 +614,37 @@ export function ChatInterface({ className = '', initialQuery, initialResponse }:
 
           {/* Input field */}
           <div className="flex-1 relative">
+            {currentMode === 'vision' && (
+              <div className="mb-3">
+                {/* Thumbnails grid 2x2 */}
+                {visionPreviews.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 mb-2 p-2 rounded-xl bg-white/5 border border-white/10">
+                    {visionPreviews.map((src, idx) => (
+                      <div key={idx} className="relative aspect-square overflow-hidden rounded-lg">
+                        <img src={src} className="object-cover w-full h-full" />
+                        <button onClick={() => removeVisionFile(idx)} className="absolute top-1 right-1 text-xs px-1.5 py-0.5 bg-black/60 text-white rounded">x</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Upload button */}
+                <label className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10">
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => {
+                    const files = Array.from(e.target.files || []) as File[]
+                    if (files.length) addVisionFiles(files)
+                    e.currentTarget.value = ''
+                  }} />
+                  <span>Attach images (max 4)</span>
+                </label>
+              </div>
+            )}
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder="Message Quest.io... (Shift+Enter for new line)"
+              onPaste={handlePaste}
+              placeholder={currentMode === 'vision' ? 'Ask about these images... (paste or upload up to 4)' : 'Message Quest.io... (Shift+Enter for new line)'}
               className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 pr-12 resize-none outline-none focus:border-primary-500/50 transition-all duration-300 text-sm leading-relaxed max-h-32"
               rows={1}
               style={{

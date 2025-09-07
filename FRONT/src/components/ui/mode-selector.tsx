@@ -5,8 +5,8 @@ import { Brain, Globe, Mic, Image as ImageIcon, Volume2 } from 'lucide-react'
 import { useSettings } from '@/lib/hooks/use-settings'
 
 interface ModeSelector {
-  currentMode: 'ai' | 'web' | 'voice' | 'image' | 'speech'
-  onModeChange: (mode: 'ai' | 'web' | 'voice' | 'image' | 'speech') => void
+  currentMode: 'ai' | 'web' | 'voice' | 'image' | 'speech' | 'vision'
+  onModeChange: (mode: 'ai' | 'web' | 'voice' | 'image' | 'speech' | 'vision') => void
   className?: string
 }
 
@@ -49,6 +49,15 @@ export function ModeSelector({ currentMode, onModeChange, className = '' }: Mode
       bgColor: 'rgba(236, 72, 153, 0.2)',
       enabled: searchSettings.imageGeneration,
       description: 'AI image generation'
+    },
+    {
+      id: 'vision' as const,
+      name: 'Vision',
+      icon: ImageIcon,
+      color: 'text-teal-400',
+      bgColor: 'rgba(20, 184, 166, 0.2)',
+      enabled: true,
+      description: 'Analyze up to 4 images'
     },
     {
       id: 'speech' as const,

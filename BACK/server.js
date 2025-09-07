@@ -48,6 +48,8 @@ const speechRoutes = require('./routes/speech');
 const weatherRoutes = require('./routes/weather-enhanced');
 const webSearchRoutes = require('./routes/web-search');
 const pollinationsRoutes = require('./routes/pollinations');
+const visionRoutes = require('./routes/vision');
+const artRoutes = require('./routes/art');
 
 // Mount routes
 app.use('/api/health', healthRoutes);
@@ -58,6 +60,8 @@ app.use('/api/speech', speechRoutes);
 app.use('/api/weather-enhanced', weatherRoutes);
 app.use('/api/web-search', webSearchRoutes);
 app.use('/api/pollinations', pollinationsRoutes);
+app.use('/api/vision', visionRoutes);
+app.use('/api/art', artRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {

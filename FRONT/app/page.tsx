@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Navigation } from '@/components/layout/navigation'
 import { BackgroundElements } from '@/components/ui/background-elements'
 import { SingleSearchBox } from '@/components/ui/single-search-box'
@@ -14,7 +14,7 @@ export default function HomePage() {
   const [lastQuery, setLastQuery] = useState('')
   const [lastResponse, setLastResponse] = useState<any>(null)
 
-  const handleSearch = async (query: string, mode: string) => {
+  const handleSearch = async (query: string, mode: string, opts?: { files?: File[]; imageUrls?: string[]; previewUrls?: string[] }) => {
     // Prevent new searches while audio is playing
     if (isAudioPlaying) {
       return
@@ -55,6 +55,44 @@ export default function HomePage() {
         console.log('Processed Response Data:', responseData)
         setLastQuery(query)
         setLastResponse(responseData)
+      } else if (mode === 'vision') {
+        // Vision: send up to 4 images + question
+        // 1) Show a user-side preview message immediately (WhatsApp-like)
+        if (opts?.previewUrls?.length) {
+          setLastQuery('(attached images)\n' + query)
+          setLastResponse({
+            content: '(images attached)',
+            tokens: 0,
+            model: 'vision-preview',
+            quotaStatus: {},
+            sources: [],
+            imageUrl: null,
+            images: opts.previewUrls,
+            mode: mode,
+            originalResponse: null
+          })
+        }
+
+        try {
+          const resp = await questAPI.analyzeVision({ files: opts?.files, imageUrls: opts?.imageUrls, question: query })
+          const responseData = {
+            content: resp.text || 'Done.',
+            tokens: 0,
+            model: 'vision',
+            quotaStatus: {},
+            sources: [],
+            imageUrl: null,
+            mode: mode,
+            type: 'vision-result',
+            originalResponse: resp
+          }
+          setLastQuery(query)
+          setLastResponse(responseData)
+        } catch (error) {
+          console.error('Vision analyze error:', error)
+          setLastQuery(query)
+          setLastResponse({ content: 'Vision analysis failed.', mode, type: 'vision-result' })
+        }
       } else if (mode === 'image') {
         // Use enhanced image generation with NLP parsing
         // Set initial loading state
@@ -107,6 +145,37 @@ export default function HomePage() {
             mode: mode,
             originalResponse: null
           })
+        }
+      } else if (mode === 'art') {
+        // Art mode: user supplies 1 image + prompt, Gemini transforms and returns an image
+        if (!(opts?.files && opts.files[0])) {
+          setLastQuery(query)
+          setLastResponse({ content: 'Please attach an image for Art mode.', mode })
+          return
+        }
+
+        // Show loading placeholder
+        setLastQuery(query)
+        setLastResponse({ content: 'Creating artwork...', isGeneratingImage: true, mode })
+
+        try {
+          const resp = await questAPI.artTransform({ imageFile: opts.files[0], prompt: query })
+          setLastResponse({
+            content: resp.description || 'Artwork created!',
+            tokens: 0,
+            model: resp.model,
+            quotaStatus: {},
+            sources: [],
+            imageUrl: resp.imageUrl,
+            originalInput: query,
+            dimensions: undefined,
+            isGeneratingImage: false,
+            mode,
+            originalResponse: resp
+          })
+        } catch (error) {
+          console.error('Art transform error:', error)
+          setLastResponse({ content: 'Art generation failed. Please try again.', mode })
         }
       } else if (mode === 'speech') {
         // Use speech generation
@@ -169,6 +238,16 @@ export default function HomePage() {
     }
   }
 
+  const footerRef = useRef<HTMLDivElement>(null)
+  const [footerHeight, setFooterHeight] = useState(0)
+
+  useEffect(() => {
+    const update = () => setFooterHeight(footerRef.current?.clientHeight || 0)
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
   return (
     <main className="min-h-screen bg-background text-foreground overflow-hidden">
       {/* Background Elements */}
@@ -210,19 +289,23 @@ export default function HomePage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="flex-1 flex flex-col pt-16 pb-32"
+              className="flex-1 flex flex-col pt-16"
             >
-              {/* Messages Display */}
-              <MessagesDisplay 
-                newQuery={lastQuery}
-                newResponse={lastResponse}
-                isSearching={isSearching}
-                onAudioPlayingChange={setIsAudioPlaying}
-                className="flex-1"
-              />
+              {/* Messages Display with dynamic bottom spacer */}
+              <div className="flex-1">
+                <MessagesDisplay 
+                  newQuery={lastQuery}
+                  newResponse={lastResponse}
+                  isSearching={isSearching}
+                  onAudioPlayingChange={setIsAudioPlaying}
+                  className="h-full"
+                  bottomSpacerPx={footerHeight + 48}
+                />
+              </div>
 
               {/* Fixed Single Search Box at Bottom */}
               <motion.div
+                ref={footerRef}
                 layoutId="single-search"
                 className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-2xl border-t border-white/10 px-4 py-6 z-50"
                 initial={{ y: 100, opacity: 0 }}

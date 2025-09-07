@@ -16,6 +16,7 @@ interface Message {
   content: string
   timestamp: Date
   imageUrl?: string
+  images?: string[]
   audioData?: string
   contentType?: string
   originalInput?: string
@@ -31,6 +32,7 @@ interface MessagesDisplayProps {
   className?: string
   onMessagesUpdate?: (messages: Message[]) => void
   onAudioPlayingChange?: (isPlaying: boolean) => void
+  bottomSpacerPx?: number
 }
 
 export function MessagesDisplay({ 
@@ -39,7 +41,8 @@ export function MessagesDisplay({
   isSearching, 
   className = '',
   onMessagesUpdate,
-  onAudioPlayingChange
+  onAudioPlayingChange,
+  bottomSpacerPx = 0
 }: MessagesDisplayProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const lastProcessedQuery = useRef<string>('')
@@ -56,41 +59,65 @@ export function MessagesDisplay({
 
   // Add messages when new query and response arrive
   useEffect(() => {
-    if (newQuery && newResponse && newQuery !== lastProcessedQuery.current && !isSearching) {
-      console.log('Adding new message:', { newQuery, newResponse })
-      
-      const userMessage: Message = {
-        id: `user-${Date.now()}-${Math.random()}`,
-        role: 'user',
-        content: newQuery,
-        timestamp: new Date()
-      }
-      
-      const aiMessage: Message = {
-        id: `ai-${Date.now()}-${Math.random()}`,
-        role: 'assistant',
-        content: newResponse.description || newResponse.content || newResponse.response || newResponse.output || newResponse.message || 'I processed your request.',
-        timestamp: new Date(),
-        imageUrl: newResponse.imageUrl,
-        audioData: newResponse.audioData,
-        contentType: newResponse.contentType,
-        originalInput: newResponse.originalInput,
-        dimensions: newResponse.dimensions,
-        type: newResponse.type
-      }
-      
-      setMessages(prev => {
-        const newMessages = [...prev, userMessage, aiMessage]
-        onMessagesUpdate?.(newMessages)
-        return newMessages
-      })
-      
-      lastProcessedQuery.current = newQuery
+    if (!newQuery || !newResponse) return
+
+    const isPreview = Array.isArray(newResponse.images) && newResponse.images.length > 0
+    const isVisionResult = newResponse?.type === 'vision-result'
+    if (!isVisionResult && newQuery === lastProcessedQuery.current && !isPreview) return
+    if (isSearching && !isPreview) return
+
+    console.log('Adding new message:', { newQuery, newResponse })
+
+    const userMessage: Message = {
+      id: `user-${Date.now()}-${Math.random()}`,
+      role: 'user',
+      content: newQuery,
+      timestamp: new Date()
     }
+
+    const aiMessage: Message = {
+      id: `ai-${Date.now()}-${Math.random()}`,
+      role: 'assistant',
+      content: newResponse.description || newResponse.content || newResponse.response || newResponse.output || newResponse.message || 'I processed your request.',
+      timestamp: new Date(),
+      imageUrl: newResponse.imageUrl,
+      audioData: newResponse.audioData,
+      contentType: newResponse.contentType,
+      originalInput: newResponse.originalInput,
+      dimensions: newResponse.dimensions,
+      type: newResponse.type
+    }
+
+    // Vision preview message injection: if newResponse.images exist and content is a preview marker
+    if (Array.isArray(newResponse.images) && newResponse.images.length) {
+      const previewMsg: Message = {
+        id: `user-vision-preview-${Date.now()}-${Math.random()}`,
+        role: 'user',
+        content: newQuery || '(images attached)',
+        timestamp: new Date(),
+        // @ts-ignore - extend type with images
+        images: newResponse.images
+      }
+      setMessages(prev => {
+        const withPreview = [...prev, previewMsg]
+        onMessagesUpdate?.(withPreview)
+        return withPreview
+      })
+      lastProcessedQuery.current = newQuery
+      return
+    }
+
+    setMessages(prev => {
+      const newMessages = [...prev, userMessage, aiMessage]
+      onMessagesUpdate?.(newMessages)
+      return newMessages
+    })
+
+    lastProcessedQuery.current = newQuery
   }, [newQuery, newResponse, isSearching, onMessagesUpdate])
 
   return (
-    <div className={`flex-1 overflow-y-auto px-4 py-6 ${className}`}>
+    <div className={`flex-1 overflow-y-auto px-4 py-6 ${className}`} style={{ paddingBottom: (bottomSpacerPx || 0) + 16 }}>
       <div className="max-w-4xl mx-auto space-y-6">
         <AnimatePresence>
           {messages.map((message, index) => (
@@ -134,30 +161,44 @@ export function MessagesDisplay({
                 {/* Message Content */}
                 <div className="pt-2">
                   {/* Parse and render message content with code blocks */}
-                  <div className="text-sm leading-relaxed">
-                    {parseMessageContent(message.content).map((block, blockIndex) => {
-                      if (block.type === 'code') {
-                        return (
-                          <CodeBlock
-                            key={blockIndex}
-                            code={block.code}
-                            language={block.language}
-                            filename={block.filename}
-                          />
-                        )
-                      } else {
-                        return (
-                          <div key={blockIndex} className="whitespace-pre-wrap mb-2">
-                            {block.content}
-                          </div>
-                        )
-                      }
-                    })}
-                  </div>
+                  {!(message.images?.length && message.role === 'user') && (
+                    <div className="text-sm leading-relaxed">
+                      {parseMessageContent(message.content).map((block, blockIndex) => {
+                        if (block.type === 'code') {
+                          return (
+                            <CodeBlock
+                              key={blockIndex}
+                              code={block.code}
+                              language={block.language}
+                              filename={block.filename}
+                            />
+                          )
+                        } else {
+                          return (
+                            <div key={blockIndex} className="whitespace-pre-wrap mb-2">
+                              {block.content}
+                            </div>
+                          )
+                        }
+                      })}
+                    </div>
+                  )}
                   
-                  {/* Enhanced Image Display for Image Generation */}
-                  {(message.imageUrl || (message.role === 'assistant' && message.isGeneratingImage)) && (
-                    <div className="mt-4">
+                  {/* Enhanced Image Display for Image Generation and Vision previews */}
+                  {(message.imageUrl || message.images?.length || (message.role === 'assistant' && message.isGeneratingImage)) && (
+                    <div className="mt-4 space-y-3">
+                      {/* Vision multiple previews */}
+                      {message.images?.length ? (
+                        <div className="grid grid-cols-2 gap-2">
+                          {message.images.map((src, i) => (
+                            <div key={i} className="relative aspect-square overflow-hidden rounded-lg border border-white/10">
+                              <img src={src} className="object-cover w-full h-full" />
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {/* Generated image */}
                       {message.imageUrl ? (
                         <EnhancedImageDisplay
                           imageUrl={message.imageUrl}
@@ -167,12 +208,12 @@ export function MessagesDisplay({
                           showControls={true}
                           autoPreview={true}
                         />
-                      ) : (
+                      ) : (!message.images?.length ? (
                         <ImageGenerationLoading 
                           prompt={newQuery || message.content || 'Generating image...'}
                           show={true}
                         />
-                      )}
+                      ) : null)}
                     </div>
                   )}
 

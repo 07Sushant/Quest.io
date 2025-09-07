@@ -22,35 +22,42 @@ const upload = multer({
 function parseImagePrompt(userInput) {
   const input = userInput.toLowerCase().trim();
   
+  // Normalize separators and whitespace
+  const normalized = input
+    .replace(/[×✕✖✖️]/g, 'x')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
   // Default values
   let prompt = userInput;
   let width = 1024;
   let height = 1024;
   
-  // Extract dimensions using regex patterns
+  // Extract dimensions using regex patterns (use normalized text)
   const dimensionPatterns = [
     // Pattern: "1024x768", "1920x1080", etc.
-    /(\d{3,4})\s*[x×]\s*(\d{3,4})/i,
+    /(\d{3,4})\s*[x]\s*(\d{3,4})/i,
     // Pattern: "width 1024 height 768"
     /width\s*:?\s*(\d{3,4}).*?height\s*:?\s*(\d{3,4})/i,
     // Pattern: "1024 by 768", "1920 by 1080"
     /(\d{3,4})\s+by\s+(\d{3,4})/i,
     // Pattern: "size 1024x768"
-    /size\s*:?\s*(\d{3,4})\s*[x×]\s*(\d{3,4})/i,
+    /size\s*:?\s*(\d{3,4})\s*[x]\s*(\d{3,4})/i,
     // Pattern: "dimensions 1024x768"
-    /dimensions?\s*:?\s*(\d{3,4})\s*[x×]\s*(\d{3,4})/i
+    /dimensions?\s*:?\s*(\d{3,4})\s*[x]\s*(\d{3,4})/i
   ];
   
   let foundDimensions = false;
   for (const pattern of dimensionPatterns) {
-    const match = input.match(pattern);
+    const match = normalized.match(pattern);
     if (match) {
       width = parseInt(match[1]);
       height = parseInt(match[2]);
       foundDimensions = true;
       
-      // Remove dimension part from prompt
-      prompt = userInput.replace(new RegExp(match[0], 'gi'), '').trim();
+      // Remove dimension part from prompt (handle different x symbols)
+      const removePattern = new RegExp(match[0].replace('x', '[x×✕✖✖️]'), 'gi');
+      prompt = userInput.replace(removePattern, '').trim();
       break;
     }
   }
@@ -58,12 +65,18 @@ function parseImagePrompt(userInput) {
   // If no explicit dimensions found, look for common size keywords
   if (!foundDimensions) {
     const sizeKeywords = {
+      'full hd': { width: 1920, height: 1080 },
+      '1080p': { width: 1920, height: 1080 },
+      '720p': { width: 1280, height: 720 },
+      '4k': { width: 3840, height: 2160 },
+      'uhd': { width: 3840, height: 2160 },
+      'hd': { width: 1280, height: 720 },
+      'wallpaper': { width: 1920, height: 1080 },
       'square': { width: 1024, height: 1024 },
       'portrait': { width: 768, height: 1024 },
-      'landscape': { width: 1024, height: 768 },
-      'wide': { width: 1344, height: 768 },
-      'tall': { width: 768, height: 1344 },
-      'wallpaper': { width: 1920, height: 1080 },
+      'landscape': { width: 1920, height: 1080 },
+      'wide': { width: 1920, height: 1080 },
+      'tall': { width: 1080, height: 1920 },
       'banner': { width: 1200, height: 400 },
       'avatar': { width: 512, height: 512 },
       'thumbnail': { width: 300, height: 300 },
@@ -73,11 +86,12 @@ function parseImagePrompt(userInput) {
     };
     
     for (const [keyword, dimensions] of Object.entries(sizeKeywords)) {
-      if (input.includes(keyword)) {
+      if (normalized.includes(keyword)) {
         width = dimensions.width;
         height = dimensions.height;
         // Remove size keyword from prompt
-        prompt = prompt.replace(new RegExp(keyword, 'gi'), '').trim();
+        const kwRegex = new RegExp(keyword.replace(' ', '\\s+'), 'gi');
+        prompt = prompt.replace(kwRegex, '').trim();
         break;
       }
     }
@@ -95,9 +109,9 @@ function parseImagePrompt(userInput) {
   // Remove extra spaces and clean up
   cleanedPrompt = cleanedPrompt.replace(/\s+/g, ' ').trim();
   
-  // Ensure dimensions are within valid range
-  width = Math.max(256, Math.min(2048, width));
-  height = Math.max(256, Math.min(2048, height));
+  // Ensure dimensions are within valid range (allow larger for HD/4K)
+  width = Math.max(256, Math.min(4096, width));
+  height = Math.max(256, Math.min(4096, height));
   
   return {
     prompt: cleanedPrompt || 'a beautiful image',
@@ -135,7 +149,9 @@ router.post('/generate', async (req, res) => {
     }
 
     // Generate image using direct Pollinations API
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${parsed.width}&height=${parsed.height}&model=flux&nologo=true&enhance=true`;
+    // Hardcode a default seed to get consistent, high-quality results
+    const DEFAULT_SEED = 934417;
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${parsed.width}&height=${parsed.height}&model=flux&nologo=true&enhance=true&seed=${DEFAULT_SEED}`;
     
     console.log('🚀 Generating image with URL:', imageUrl);
 

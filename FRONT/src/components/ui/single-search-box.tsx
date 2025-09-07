@@ -2,10 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Send, Mic, Globe, Brain, Image as ImageIcon, Zap, Sparkles, Volume2 } from 'lucide-react'
+import { Search, Send, Mic, Globe, Brain, TrainFront, Image as ImageIcon, Zap, Sparkles, Volume2, Palette } from 'lucide-react'
 
 interface SingleSearchBoxProps {
-  onSearch: (query: string, mode: string) => void
+  onSearch: (query: string, mode: string, opts?: { files?: File[]; imageUrls?: string[]; previewUrls?: string[] }) => void
   isSearching: boolean
   isCompact?: boolean
   className?: string
@@ -17,21 +17,80 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
   const [isFocused, setIsFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Vision/Art local state for image inputs
+  const [visionFiles, setVisionFiles] = useState<File[]>([])
+  const [visionPreviews, setVisionPreviews] = useState<string[]>([])
+  const [artFile, setArtFile] = useState<File | null>(null)
+  const [artPreview, setArtPreview] = useState<string | null>(null)
+
+  const addVisionFiles = (files: File[]) => {
+    if (!files?.length) return
+    if (selectedMode === 'art') {
+      // For Art mode, keep only one image and override any existing
+      const first = files[0]
+      setVisionFiles([first])
+      setVisionPreviews([URL.createObjectURL(first)])
+      return
+    }
+    // Vision: allow up to 4 and merge
+    const merged = [...visionFiles, ...files].slice(0, 4)
+    setVisionFiles(merged)
+    const urls = merged.map(f => URL.createObjectURL(f))
+    setVisionPreviews(urls)
+  }
+
+  const removeVisionFile = (idx: number) => {
+    const next = visionFiles.filter((_, i) => i !== idx)
+    setVisionFiles(next)
+    const urls = next.map(f => URL.createObjectURL(f))
+    setVisionPreviews(urls)
+  }
+
   const modes = [
-    { id: 'ai', icon: Brain, name: 'AI Chat', color: 'from-green-400 to-blue-500' },
+    { id: 'ai', icon: TrainFront, name: 'AI Chat', color: 'from-green-400 to-blue-500' },
     { id: 'web', icon: Globe, name: 'Web Search', color: 'from-blue-400 to-purple-500' },
     { id: 'voice', icon: Mic, name: 'Voice', color: 'from-purple-400 to-pink-500' },
     { id: 'image', icon: ImageIcon, name: 'Image Gen', color: 'from-pink-400 to-red-500' },
+    { id: 'vision', icon: ImageIcon, name: 'Vision', color: 'from-teal-400 to-emerald-500' },
+    { id: 'art', icon: Palette, name: 'Art', color: 'from-fuchsia-400 to-rose-500' },
     { id: 'speech', icon: Volume2, name: 'Speech', color: 'from-orange-400 to-yellow-500' }
   ]
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (query.trim() && !isSearching) {
-      onSearch(query.trim(), selectedMode)
+      // Pass files for vision and art modes (art uses only the first image)
+      let opts: { files?: File[]; previewUrls?: string[] } | undefined
+      if ((selectedMode === 'vision' || selectedMode === 'art') && (visionFiles.length || visionPreviews.length)) {
+        const files = selectedMode === 'art' ? visionFiles.slice(0, 1) : visionFiles
+        const previews = selectedMode === 'art' ? visionPreviews.slice(0, 1) : visionPreviews
+        opts = { files, previewUrls: previews }
+      }
+      onSearch(query.trim(), selectedMode, opts)
       setQuery('')
     }
   }
+
+  // Allow pasting images in vision or art mode on landing input
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    const onPaste = (evt: ClipboardEvent) => {
+      if (selectedMode !== 'vision' && selectedMode !== 'art') return
+      const items = evt.clipboardData?.items
+      if (!items) return
+      const files: File[] = []
+      for (const it of items as any) {
+        if (it.type?.startsWith('image/')) {
+          const blob = it.getAsFile?.()
+          if (blob) files.push(new File([blob], `pasted-${Date.now()}.png`, { type: blob.type }))
+        }
+      }
+      if (files.length) addVisionFiles(selectedMode === 'art' ? [files[0]] : files)
+    }
+    el.addEventListener('paste', onPaste as any)
+    return () => el.removeEventListener('paste', onPaste as any)
+  }, [selectedMode, inputRef.current])
 
   useEffect(() => {
     if (!isCompact && inputRef.current) {
@@ -121,6 +180,28 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
       </motion.div>
 
       {/* Enhanced Search Input */}
+      {/* Vision small inline previews row */}
+      {selectedMode === 'vision' && visionPreviews.length > 0 && (
+        <div className="flex items-center gap-2 mb-2 px-2">
+          {visionPreviews.map((src, idx) => (
+            <div key={idx} className="relative w-10 h-10 shrink-0 rounded-md overflow-hidden border border-white/10">
+              <img src={src} className="object-cover w-full h-full" />
+              <button onClick={() => removeVisionFile(idx)} className="absolute -top-1 -right-1 text-[10px] leading-none px-1 bg-black/70 text-white rounded-full">×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Art single preview row */}
+      {selectedMode === 'art' && visionPreviews.length > 0 && (
+        <div className="flex items-center gap-2 mb-2 px-2">
+          <div className="relative w-10 h-10 shrink-0 rounded-md overflow-hidden border border-white/10">
+            <img src={visionPreviews[0]} className="object-cover w-full h-full" />
+            <button onClick={() => { setVisionFiles([]); setVisionPreviews([]) }} className="absolute -top-1 -right-1 text-[10px] leading-none px-1 bg-black/70 text-white rounded-full">×</button>
+          </div>
+        </div>
+      )}
+
       <motion.form 
         onSubmit={handleSubmit}
         className="relative"
@@ -193,6 +274,25 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
                 dark:text-white dark:placeholder-white/50
               `}
             />
+
+            {/* Vision/Art Attach Button (right corner) */}
+            {(selectedMode === 'vision' || selectedMode === 'art') && (
+              <label className={`${isCompact ? 'mr-2 p-2' : 'mr-3 p-3'} bg-foreground/10 hover:bg-foreground/20 dark:bg-white/10 dark:hover:bg-white/20 text-foreground/80 dark:text-white/80 rounded-xl cursor-pointer transition-colors duration-200 flex items-center gap-2`}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple={selectedMode === 'vision'}
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []) as File[]
+                    if (files.length) addVisionFiles(selectedMode === 'vision' ? files : [files[0]])
+                    e.currentTarget.value = ''
+                  }}
+                />
+                <ImageIcon className="w-4 h-4" />
+                <span className="hidden sm:inline text-xs">Attach</span>
+              </label>
+            )}
 
             {/* Send Button */}
             <AnimatePresence>
