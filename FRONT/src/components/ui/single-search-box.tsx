@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Send, Mic, Globe, Brain, TrainFront, Image as ImageIcon, Zap, Sparkles, Volume2, Palette } from 'lucide-react'
+import { Search, Send, Mic, Globe, Brain, TrainFront, Image as ImageIcon, Sparkles, Volume2, Palette } from 'lucide-react'
 import GeminiVoiceModal from './gemini-voice-modal'
+import { Microscope } from "lucide-react";
+
 
 interface SingleSearchBoxProps {
   onSearch: (query: string, mode: string, opts?: { files?: File[]; imageUrls?: string[]; previewUrls?: string[] }) => void
@@ -20,6 +22,18 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
 
   // Voice modal state
   const [voiceOpen, setVoiceOpen] = useState(false)
+
+  // Transient STEM notice
+  const [stemNotice, setStemNotice] = useState(false)
+
+  // STEM notice auto-hide on select
+  useEffect(() => {
+    if (selectedMode === 'STEM') {
+      setStemNotice(true)
+      const t = setTimeout(() => setStemNotice(false), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [selectedMode])
 
   // Vision/Art local state for image inputs
   const [visionFiles, setVisionFiles] = useState<File[]>([])
@@ -51,13 +65,14 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
   }
 
   const modes = [
-    { id: 'ai', icon: TrainFront, name: 'AI Chat', color: 'from-green-400 to-blue-500' },
+    { id: 'ai', icon: TrainFront, name: 'Quest', color: 'from-green-400 to-blue-500' },
     { id: 'web', icon: Globe, name: 'Web Search', color: 'from-blue-400 to-purple-500' },
     { id: 'voice', icon: Mic, name: 'Voice', color: 'from-purple-400 to-pink-500' },
     { id: 'image', icon: ImageIcon, name: 'Image Gen', color: 'from-pink-400 to-red-500' },
     { id: 'vision', icon: ImageIcon, name: 'Vision', color: 'from-teal-400 to-emerald-500' },
     { id: 'art', icon: Palette, name: 'Art', color: 'from-fuchsia-400 to-rose-500' },
-    { id: 'speech', icon: Volume2, name: 'Speech', color: 'from-orange-400 to-yellow-500' }
+    { id: 'speech', icon: Volume2, name: 'Speech', color: 'from-orange-400 to-yellow-500' },
+    { id: 'STEM', icon: Microscope, name: 'STEM', color: 'from-cyan-400 to-sky-500' },
   ]
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -119,10 +134,18 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
               transition={{ type: "spring", stiffness: 300 }}
             >
               <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-2xl">
-                  <Zap className="w-8 h-8 text-white" />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-2xl blur-xl opacity-50 -z-10"></div>
+                <motion.div
+                  className="w-16 h-16 rounded-2xl overflow-hidden shadow-2xl"
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 8, ease: 'linear' }}
+                >
+                  <img
+                    src="https://raw.githubusercontent.com/07Sushant/dump/main/quest.png"
+                    alt="Quest logo"
+                    className="w-full h-full object-cover"
+                    loading="eager"
+                  />
+                </motion.div>
               </div>
               <h1 className="text-7xl font-black bg-gradient-to-r from-foreground via-primary-300 to-secondary-300 bg-clip-text text-transparent dark:from-white dark:via-blue-200 dark:to-purple-200">
                 Quest.io
@@ -140,15 +163,21 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
         )}
       </AnimatePresence>
 
+      {/* Dock wrapper start */}
+      <motion.div className="relative mx-auto w-full max-w-4xl px-4">
+        <motion.div
+          layout
+          className="rounded-3xl bg-foreground/[0.06] dark:bg-white/10 border border-foreground/10 dark:border-white/10 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)] px-4 sm:px-6 md:px-8 py-4 sm:py-5 md:py-6"
+        >
       {/* Enhanced Mode Selector */}
       <motion.div 
-        className="mb-6"
+        className="mb-4"
         layout
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: isCompact ? 0 : 0.4 }}
       >
-        <div className="flex justify-center space-x-2">
+        <div className="flex justify-center flex-wrap gap-2">
           {modes.map((mode) => {
             const Icon = mode.icon
             return (
@@ -193,10 +222,28 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
         <GeminiVoiceModal open={voiceOpen} onClose={() => setVoiceOpen(false)} />
       )}
 
+      {/* STEM Transient Notice (bottom-right toast) */}
+      <AnimatePresence>
+        {stemNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.98 }}
+            transition={{ duration: 0.25 }}
+            className="fixed bottom-4 right-4 z-50"
+          >
+            <div className="rounded-xl border border-red-500/40 bg-red-50/90 text-red-800 dark:bg-red-500/20 dark:text-red-200 px-4 py-3 text-sm shadow-2xl backdrop-blur-md max-w-xs">
+
+              From Hugging Face, Fathom R1 14B will be used for complex STEM problem solving and it may take longer. Coming soon.
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Enhanced Search Input */}
       {/* Vision small inline previews row */}
       {selectedMode === 'vision' && visionPreviews.length > 0 && (
-        <div className="flex items-center gap-2 mb-2 px-2">
+        <div className="flex items-center gap-2 mb-3 px-2">
           {visionPreviews.map((src, idx) => (
             <div key={idx} className="relative w-10 h-10 shrink-0 rounded-md overflow-hidden border border-white/10">
               <img src={src} className="object-cover w-full h-full" />
@@ -208,7 +255,7 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
 
       {/* Art single preview row */}
       {selectedMode === 'art' && visionPreviews.length > 0 && (
-        <div className="flex items-center gap-2 mb-2 px-2">
+        <div className="flex items-center gap-2 mb-3 px-2">
           <div className="relative w-10 h-10 shrink-0 rounded-md overflow-hidden border border-white/10">
             <img src={visionPreviews[0]} className="object-cover w-full h-full" />
             <button onClick={() => { setVisionFiles([]); setVisionPreviews([]) }} className="absolute -top-1 -right-1 text-[10px] leading-none px-1 bg-black/70 text-white rounded-full">×</button>
@@ -356,6 +403,9 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
           />
         </motion.div>
       </motion.form>
+      </motion.div>
+      </motion.div>
+      {/* Dock wrapper end */}
 
       {/* Quick Suggestions - Only for main search */}
       <AnimatePresence>

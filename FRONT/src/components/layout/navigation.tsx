@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTheme } from 'next-themes'
-import { Sun, Moon, Menu, X, Zap, Settings } from 'lucide-react'
+import { Sun, Moon, Menu, X, Settings } from 'lucide-react'
 import { SettingsModal } from '@/components/ui/settings-modal'
 import { useMounted } from '@/hooks/use-mounted'
 
@@ -27,10 +27,10 @@ export function Navigation() {
   }, [mounted])
 
   const navItems = [
-    { label: 'Home', href: '#home' },
-    { label: 'Features', href: '#features' },
-    { label: 'About', href: '#about' },
-    { label: 'Contact', href: '#contact' },
+    { label: 'Home', href: '/' },
+    { label: 'Features', href: '/features' },
+    { label: 'About', href: '/about' },
+    { label: 'Contact', href: 'https://sushant.enally.in/', external: true },
   ]
 
   return (
@@ -51,9 +51,18 @@ export function Navigation() {
             whileHover={{ scale: 1.05 }}
             className="flex items-center space-x-2"
           >
-            <div className="w-10 h-10 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-lg flex items-center justify-center">
-              <Zap className="w-6 h-6 text-white" />
-            </div>
+            <motion.div
+              className="w-10 h-10 rounded-lg overflow-hidden"
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 6, ease: 'linear' }}
+            >
+              <img
+                src="https://raw.githubusercontent.com/07Sushant/dump/main/quest.png"
+                alt="Quest logo"
+                className="w-full h-full object-cover"
+                loading="eager"
+              />
+            </motion.div>
             <span className="text-xl font-bold gradient-text">Quest.io</span>
           </motion.div>
 
@@ -63,6 +72,8 @@ export function Navigation() {
               <motion.a
                 key={item.label}
                 href={item.href}
+                target={item.external ? '_blank' : undefined}
+                rel={item.external ? 'noopener noreferrer' : undefined}
                 whileHover={{ y: -2 }}
                 className="text-muted-foreground hover:text-foreground transition-colors duration-300 relative group"
               >
