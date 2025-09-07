@@ -1,3 +1,17 @@
+# 🚨 Dear Recruiter 🚨
+
+⚠️ To prevent copy and malpractice, **only the project architecture is public**.  
+The **entire codebase is kept private**.  
+
+👉 To view the full project:  
+- 📺 [Watch on YouTube](https://www.youtube.com/watch?v=dQw4w9WgXcQ) *(dummy link, replace with your video)*  
+- 📩 Or **request access** directly from me.  
+
+[![Watch Demo](https://dummyimage.com/600x400/000/fff&text=▶+Watch+on+YouTube)](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+
+---
+
+
 # Quest.io — AI Multi‑Agent Based Project
 
 ## What is Quest.io?

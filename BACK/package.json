@@ -35,8 +35,7 @@
     "ai",
     "search",
     "api",
-    "quest",
-    "pollinations"
+    "quest"
   ],
   "author": "Quest.io Team",
   "license": "MIT"
