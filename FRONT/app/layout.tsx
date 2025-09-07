@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   description: 'Experience the future of search with Quest.io - an AI-powered, intuitive search engine designed for the modern web.',
   keywords: 'search engine, AI, Quest.io, futuristic, web search',
   authors: [{ name: 'Quest.io Team' }],
+  icons: {
+    icon: 'https://raw.githubusercontent.com/07Sushant/dump/main/quest.png',
+    shortcut: 'https://raw.githubusercontent.com/07Sushant/dump/main/quest.png',
+    apple: 'https://raw.githubusercontent.com/07Sushant/dump/main/quest.png',
+  },
 }
 
 export const viewport = {
