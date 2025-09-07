@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Send, Mic, Globe, Brain, Image as ImageIcon, Zap, Sparkles } from 'lucide-react'
+import { Search, Send, Mic, Globe, Brain, Image as ImageIcon, Zap, Sparkles, Volume2 } from 'lucide-react'
 
 interface SingleSearchBoxProps {
   onSearch: (query: string, mode: string) => void
@@ -21,7 +21,8 @@ export function SingleSearchBox({ onSearch, isSearching, isCompact = false, clas
     { id: 'ai', icon: Brain, name: 'AI Chat', color: 'from-green-400 to-blue-500' },
     { id: 'web', icon: Globe, name: 'Web Search', color: 'from-blue-400 to-purple-500' },
     { id: 'voice', icon: Mic, name: 'Voice', color: 'from-purple-400 to-pink-500' },
-    { id: 'image', icon: ImageIcon, name: 'Image Gen', color: 'from-pink-400 to-red-500' }
+    { id: 'image', icon: ImageIcon, name: 'Image Gen', color: 'from-pink-400 to-red-500' },
+    { id: 'speech', icon: Volume2, name: 'Speech', color: 'from-orange-400 to-yellow-500' }
   ]
 
   const handleSubmit = (e: React.FormEvent) => {

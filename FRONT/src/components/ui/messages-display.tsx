@@ -6,6 +6,9 @@ import { Bot, User, Loader2 } from 'lucide-react'
 import { getImageUrl } from '@/lib/api'
 import { CodeBlock } from './code-block'
 import { parseMessageContent, MessageBlock } from '@/lib/message-parser'
+import { AudioPlayer } from './audio-player'
+import { EnhancedImageDisplay } from './enhanced-image-display'
+import { ImageGenerationLoading } from './image-generation-loading'
 
 interface Message {
   id: string
@@ -13,7 +16,12 @@ interface Message {
   content: string
   timestamp: Date
   imageUrl?: string
+  audioData?: string
+  contentType?: string
+  originalInput?: string
+  dimensions?: { width: number; height: number }
   type?: string
+  isGeneratingImage?: boolean
 }
 
 interface MessagesDisplayProps {
@@ -22,6 +30,7 @@ interface MessagesDisplayProps {
   isSearching?: boolean
   className?: string
   onMessagesUpdate?: (messages: Message[]) => void
+  onAudioPlayingChange?: (isPlaying: boolean) => void
 }
 
 export function MessagesDisplay({ 
@@ -29,7 +38,8 @@ export function MessagesDisplay({
   newResponse, 
   isSearching, 
   className = '',
-  onMessagesUpdate
+  onMessagesUpdate,
+  onAudioPlayingChange
 }: MessagesDisplayProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const lastProcessedQuery = useRef<string>('')
@@ -62,6 +72,10 @@ export function MessagesDisplay({
         content: newResponse.description || newResponse.content || newResponse.response || newResponse.output || newResponse.message || 'I processed your request.',
         timestamp: new Date(),
         imageUrl: newResponse.imageUrl,
+        audioData: newResponse.audioData,
+        contentType: newResponse.contentType,
+        originalInput: newResponse.originalInput,
+        dimensions: newResponse.dimensions,
         type: newResponse.type
       }
       
@@ -141,20 +155,37 @@ export function MessagesDisplay({
                     })}
                   </div>
                   
-                  {/* Image Display for Image Generation */}
-                  {message.imageUrl && (
+                  {/* Enhanced Image Display for Image Generation */}
+                  {(message.imageUrl || (message.role === 'assistant' && message.isGeneratingImage)) && (
                     <div className="mt-4">
-                      <motion.img
-                        src={getImageUrl(message.imageUrl)}
-                        alt="Generated image"
-                        className="rounded-xl max-w-full h-auto shadow-lg"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.3, duration: 0.5 }}
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                          console.error('Failed to load image:', message.imageUrl)
-                        }}
+                      {message.imageUrl ? (
+                        <EnhancedImageDisplay
+                          imageUrl={message.imageUrl}
+                          prompt={newQuery || message.content || 'Generated image'}
+                          originalInput={message.originalInput}
+                          dimensions={message.dimensions}
+                          showControls={true}
+                          autoPreview={true}
+                        />
+                      ) : (
+                        <ImageGenerationLoading 
+                          prompt={newQuery || message.content || 'Generating image...'}
+                          show={true}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Audio Display for Speech Generation */}
+                  {message.audioData && (
+                    <div className="mt-4">
+                      <AudioPlayer
+                        audioData={message.audioData}
+                        contentType={message.contentType}
+                        text={newQuery || 'Generated speech'}
+                        autoPlay={true}
+                        onPlayStart={() => onAudioPlayingChange?.(true)}
+                        onPlayEnd={() => onAudioPlayingChange?.(false)}
                       />
                     </div>
                   )}

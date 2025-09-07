@@ -4,11 +4,13 @@ export interface SearchResult {
   url: string
   description: string
   timestamp: string
-  type: 'web' | 'ai' | 'academic' | 'news'
+  type: 'web' | 'ai' | 'academic' | 'news' | 'voice' | 'image' | 'speech'
   category?: string
   relevanceScore?: number
   snippet?: string
   imageUrl?: string
+  audioUrl?: string
+  audioData?: string
   author?: string
   domain?: string
   publishedDate?: string
@@ -16,7 +18,7 @@ export interface SearchResult {
 
 export interface SearchParams {
   query: string
-  mode: 'web' | 'ai' | 'academic' | 'news'
+  mode: 'web' | 'ai' | 'academic' | 'news' | 'voice' | 'image' | 'speech'
   page?: number
   limit?: number
   category?: string

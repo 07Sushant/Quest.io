@@ -1,12 +1,12 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Brain, Globe, Mic, Image as ImageIcon } from 'lucide-react'
+import { Brain, Globe, Mic, Image as ImageIcon, Volume2 } from 'lucide-react'
 import { useSettings } from '@/lib/hooks/use-settings'
 
 interface ModeSelector {
-  currentMode: 'ai' | 'web' | 'voice' | 'image'
-  onModeChange: (mode: 'ai' | 'web' | 'voice' | 'image') => void
+  currentMode: 'ai' | 'web' | 'voice' | 'image' | 'speech'
+  onModeChange: (mode: 'ai' | 'web' | 'voice' | 'image' | 'speech') => void
   className?: string
 }
 
@@ -49,6 +49,15 @@ export function ModeSelector({ currentMode, onModeChange, className = '' }: Mode
       bgColor: 'rgba(236, 72, 153, 0.2)',
       enabled: searchSettings.imageGeneration,
       description: 'AI image generation'
+    },
+    {
+      id: 'speech' as const,
+      name: 'Speech',
+      icon: Volume2,
+      color: 'text-orange-400',
+      bgColor: 'rgba(249, 115, 22, 0.2)',
+      enabled: true,
+      description: 'Text to speech conversion'
     }
   ]
 

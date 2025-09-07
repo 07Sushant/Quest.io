@@ -72,6 +72,7 @@ export interface ImageGenerationResponse {
   imageUrl: string
   prompt: string
   enhancedPrompt?: string
+  originalInput?: string
   model: string
   dimensions: {
     width: number
@@ -291,10 +292,13 @@ class QuestAPIEnhanced {
     }
   }
 
-  // Enhanced Image API
+  // Enhanced Image API with NLP parsing
   async generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
     try {
-      return await api.post('/image-enhanced/generate', request)
+      return await api.post('/image-enhanced/generate', {
+        prompt: request.prompt,
+        enhance: request.enhance !== false
+      })
     } catch (error) {
       throw new Error('Failed to generate image')
     }
@@ -645,6 +649,26 @@ class QuestAPIEnhanced {
       return await Promise.all(promises) as ImageGenerationResponse[]
     } catch (error) {
       throw new Error('Batch generation failed')
+    }
+  }
+
+  // Text to Speech functionality
+  async generateSpeech(request: {
+    text: string
+    voice?: string
+    model?: string
+  }) {
+    try {
+      const response = await api.post('/speech/text-to-speech', {
+        text: request.text,
+        voice: request.voice || 'nova',
+        model: request.model || 'openai-audio'
+      })
+
+      return response
+    } catch (error) {
+      console.error('Speech generation error:', error)
+      throw new Error('Failed to generate speech')
     }
   }
 

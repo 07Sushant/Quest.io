@@ -10,10 +10,16 @@ import { motion, AnimatePresence } from 'framer-motion'
 export default function HomePage() {
   const [hasSearched, setHasSearched] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false)
   const [lastQuery, setLastQuery] = useState('')
   const [lastResponse, setLastResponse] = useState<any>(null)
 
   const handleSearch = async (query: string, mode: string) => {
+    // Prevent new searches while audio is playing
+    if (isAudioPlaying) {
+      return
+    }
+    
     setIsSearching(true)
     setHasSearched(true)
     
@@ -50,21 +56,75 @@ export default function HomePage() {
         setLastQuery(query)
         setLastResponse(responseData)
       } else if (mode === 'image') {
-        // Use image generation
-        response = await questAPI.generateImage({
-          prompt: query,
-          width: 1024,
-          height: 768,
-          enhance: true
-        })
-        
-        const responseData = {
-          content: 'Image generated successfully!',
+        // Use enhanced image generation with NLP parsing
+        // Set initial loading state
+        const loadingResponse = {
+          content: 'Generating your image...',
           tokens: 0,
-          model: 'image-generation',
+          model: 'flux-nlp-enhanced',
           quotaStatus: {},
           sources: [],
-          imageUrl: response.imageUrl,
+          imageUrl: null,
+          isGeneratingImage: true,
+          mode: mode,
+          originalResponse: null
+        }
+        
+        setLastQuery(query)
+        setLastResponse(loadingResponse)
+        
+        try {
+          response = await questAPI.generateImage({
+            prompt: query
+          })
+          
+          const responseData = {
+            content: 'Image generated successfully!',
+            tokens: 0,
+            model: 'flux-nlp-enhanced',
+            quotaStatus: {},
+            sources: [],
+            imageUrl: response.imageUrl,
+            originalInput: response.originalInput,
+            dimensions: response.dimensions,
+            isGeneratingImage: false,
+            mode: mode,
+            originalResponse: response
+          }
+          
+          console.log('Processed Response Data:', responseData)
+          setLastResponse(responseData)
+        } catch (error) {
+          console.error('Image generation error:', error)
+          setLastResponse({
+            content: 'Failed to generate image. Please try again.',
+            tokens: 0,
+            model: 'flux-nlp-enhanced',
+            quotaStatus: {},
+            sources: [],
+            imageUrl: null,
+            isGeneratingImage: false,
+            mode: mode,
+            originalResponse: null
+          })
+        }
+      } else if (mode === 'speech') {
+        // Use speech generation
+        response = await questAPI.generateSpeech({
+          text: query
+        })
+        
+        const speechResponse = response as any
+        
+        const responseData = {
+          content: 'Audio generated successfully!',
+          tokens: 0,
+          model: 'speech-synthesis',
+          quotaStatus: {},
+          sources: [],
+          imageUrl: null,
+          audioData: speechResponse.audioData,
+          contentType: speechResponse.contentType,
           mode: mode,
           originalResponse: response
         }
@@ -138,7 +198,7 @@ export default function HomePage() {
               >
                 <SingleSearchBox
                   onSearch={handleSearch}
-                  isSearching={isSearching}
+                  isSearching={isSearching || isAudioPlaying}
                   isCompact={false}
                 />
               </motion.div>
@@ -157,6 +217,7 @@ export default function HomePage() {
                 newQuery={lastQuery}
                 newResponse={lastResponse}
                 isSearching={isSearching}
+                onAudioPlayingChange={setIsAudioPlaying}
                 className="flex-1"
               />
 
@@ -176,7 +237,7 @@ export default function HomePage() {
                 <div className="max-w-4xl mx-auto">
                   <SingleSearchBox
                     onSearch={handleSearch}
-                    isSearching={isSearching}
+                    isSearching={isSearching || isAudioPlaying}
                     isCompact={true}
                   />
                 </div>

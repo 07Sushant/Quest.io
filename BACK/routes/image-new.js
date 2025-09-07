@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const multer = require('multer');
+const natural = require('natural');
 const router = express.Router();
 
 // Configure multer for file uploads
@@ -17,54 +18,179 @@ const upload = multer({
   }
 });
 
-// ENHANCED IMAGE GENERATION - Uses secure Pollinations proxy
+// NLP-based prompt and dimension extraction function
+function parseImagePrompt(userInput) {
+  const input = userInput.toLowerCase().trim();
+  
+  // Default values
+  let prompt = userInput;
+  let width = 1024;
+  let height = 1024;
+  
+  // Extract dimensions using regex patterns
+  const dimensionPatterns = [
+    // Pattern: "1024x768", "1920x1080", etc.
+    /(\d{3,4})\s*[x×]\s*(\d{3,4})/i,
+    // Pattern: "width 1024 height 768"
+    /width\s*:?\s*(\d{3,4}).*?height\s*:?\s*(\d{3,4})/i,
+    // Pattern: "1024 by 768", "1920 by 1080"
+    /(\d{3,4})\s+by\s+(\d{3,4})/i,
+    // Pattern: "size 1024x768"
+    /size\s*:?\s*(\d{3,4})\s*[x×]\s*(\d{3,4})/i,
+    // Pattern: "dimensions 1024x768"
+    /dimensions?\s*:?\s*(\d{3,4})\s*[x×]\s*(\d{3,4})/i
+  ];
+  
+  let foundDimensions = false;
+  for (const pattern of dimensionPatterns) {
+    const match = input.match(pattern);
+    if (match) {
+      width = parseInt(match[1]);
+      height = parseInt(match[2]);
+      foundDimensions = true;
+      
+      // Remove dimension part from prompt
+      prompt = userInput.replace(new RegExp(match[0], 'gi'), '').trim();
+      break;
+    }
+  }
+  
+  // If no explicit dimensions found, look for common size keywords
+  if (!foundDimensions) {
+    const sizeKeywords = {
+      'square': { width: 1024, height: 1024 },
+      'portrait': { width: 768, height: 1024 },
+      'landscape': { width: 1024, height: 768 },
+      'wide': { width: 1344, height: 768 },
+      'tall': { width: 768, height: 1344 },
+      'wallpaper': { width: 1920, height: 1080 },
+      'banner': { width: 1200, height: 400 },
+      'avatar': { width: 512, height: 512 },
+      'thumbnail': { width: 300, height: 300 },
+      'instagram': { width: 1080, height: 1080 },
+      'twitter': { width: 1200, height: 675 },
+      'facebook': { width: 1200, height: 630 }
+    };
+    
+    for (const [keyword, dimensions] of Object.entries(sizeKeywords)) {
+      if (input.includes(keyword)) {
+        width = dimensions.width;
+        height = dimensions.height;
+        // Remove size keyword from prompt
+        prompt = prompt.replace(new RegExp(keyword, 'gi'), '').trim();
+        break;
+      }
+    }
+  }
+  
+  // Clean up the prompt - remove common dimension-related words
+  const cleanupWords = ['size', 'dimension', 'dimensions', 'resolution', 'pixels', 'px', 'image', 'picture', 'photo', 'generate', 'create', 'make'];
+  let cleanedPrompt = prompt;
+  
+  cleanupWords.forEach(word => {
+    const regex = new RegExp(`\\b${word}s?\\b`, 'gi');
+    cleanedPrompt = cleanedPrompt.replace(regex, '').trim();
+  });
+  
+  // Remove extra spaces and clean up
+  cleanedPrompt = cleanedPrompt.replace(/\s+/g, ' ').trim();
+  
+  // Ensure dimensions are within valid range
+  width = Math.max(256, Math.min(2048, width));
+  height = Math.max(256, Math.min(2048, height));
+  
+  return {
+    prompt: cleanedPrompt || 'a beautiful image',
+    width,
+    height,
+    originalInput: userInput
+  };
+}
+
+// ENHANCED IMAGE GENERATION with NLP parsing
 router.post('/generate', async (req, res) => {
   try {
-    const { prompt, width, height, model, enhance, seed, nologo } = req.body;
+    const { prompt: userInput, enhance = true } = req.body;
     
-    if (!prompt || prompt.trim().length === 0) {
+    if (!userInput || userInput.trim().length === 0) {
       return res.status(400).json({
         error: 'Prompt is required',
         timestamp: new Date().toISOString()
       });
     }
 
-    // Enhanced prompt processing
-    let enhancedPrompt = prompt.trim();
+    // Parse the user input using NLP
+    const parsed = parseImagePrompt(userInput);
     
-    // Auto-enhance prompt if requested
-    if (enhance !== false) {
-      enhancedPrompt = await enhancePromptInternal(prompt);
+    console.log('🎨 NLP Parsed Image Request:', {
+      originalInput: userInput,
+      extractedPrompt: parsed.prompt,
+      dimensions: { width: parsed.width, height: parsed.height }
+    });
+
+    // Enhance the prompt if requested
+    let finalPrompt = parsed.prompt;
+    if (enhance) {
+      finalPrompt = enhancePrompt(parsed.prompt);
     }
 
-    console.log('🎨 Enhanced Image Generation Request:', {
-      originalPrompt: prompt,
-      enhancedPrompt: enhancedPrompt,
-      dimensions: { width, height }
+    // Generate image using direct Pollinations API
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${parsed.width}&height=${parsed.height}&model=flux&nologo=true&enhance=true`;
+    
+    console.log('🚀 Generating image with URL:', imageUrl);
+
+    // Fetch the image
+    const response = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      timeout: 45000,
+      headers: {
+        'User-Agent': 'Quest.io/1.0.0'
+      }
     });
 
-    // Call our secure Pollinations proxy (internal route)
-    const pollinationsResponse = await axios.post('http://localhost:3001/api/pollinations/generate-image', {
-      prompt: enhancedPrompt,
-      width: width || 1024,
-      height: height || 1024,
-      model: model || 'flux',
-      enhance: true,
-      seed: seed
+    // Convert to base64 for easy handling
+    const imageBuffer = Buffer.from(response.data);
+    const imageBase64 = imageBuffer.toString('base64');
+    const mimeType = response.headers['content-type'] || 'image/jpeg';
+    
+    // Store in memory cache for serving
+    if (!global.imageCache) {
+      global.imageCache = new Map();
+    }
+    
+    const imageId = Date.now() + '_' + Math.random().toString(36).substring(2, 15);
+    global.imageCache.set(imageId, {
+      buffer: imageBuffer,
+      mimeType: mimeType,
+      timestamp: Date.now(),
+      prompt: finalPrompt,
+      originalInput: userInput,
+      dimensions: { width: parsed.width, height: parsed.height }
     });
+    
+    // Clean up old images (keep only last 50 images)
+    if (global.imageCache.size > 50) {
+      const entries = Array.from(global.imageCache.entries());
+      entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const toDelete = entries.slice(0, entries.length - 50);
+      toDelete.forEach(([key]) => global.imageCache.delete(key));
+    }
 
-    // Return enhanced response
+    // Return response with local image URL
     res.json({
-      imageUrl: pollinationsResponse.data.imageUrl,
-      prompt: prompt,
-      enhancedPrompt: enhancedPrompt,
-      model: pollinationsResponse.data.model,
-      dimensions: pollinationsResponse.data.dimensions,
+      success: true,
+      imageUrl: `/api/image-enhanced/serve/${imageId}`,
+      prompt: parsed.prompt,
+      enhancedPrompt: finalPrompt,
+      originalInput: userInput,
+      dimensions: { width: parsed.width, height: parsed.height },
+      model: 'flux',
       timestamp: new Date().toISOString(),
       metadata: {
-        ...pollinationsResponse.data.metadata,
-        enhanced: enhance !== false,
-        processingTime: Date.now() - req.startTime
+        size: imageBuffer.length,
+        format: mimeType.split('/')[1],
+        enhanced: enhance,
+        nlpParsed: true
       }
     });
 
@@ -79,200 +205,98 @@ router.post('/generate', async (req, res) => {
   }
 });
 
-// IMAGE ANALYSIS ENDPOINT
-router.post('/analyze', upload.single('image'), async (req, res) => {
+// Image serving endpoint
+router.get('/serve/:imageId', (req, res) => {
   try {
-    const { question, model } = req.body;
-    const imageFile = req.file;
-    const imageUrl = req.body.imageUrl;
-
-    if (!imageFile && !imageUrl) {
-      return res.status(400).json({
-        error: 'Either image file or image URL is required',
-        timestamp: new Date().toISOString()
+    const { imageId } = req.params;
+    
+    if (!global.imageCache || !global.imageCache.has(imageId)) {
+      return res.status(404).json({
+        error: 'Image not found',
+        message: 'The requested image does not exist or has expired'
       });
     }
-
-    let analysisPrompt = question || 'Describe this image in detail';
     
-    // For now, return a mock analysis (can be enhanced with actual AI vision API)
-    const mockAnalysis = {
-      analysis: `Image Analysis: ${analysisPrompt}\n\nThis appears to be an image that has been uploaded for analysis. The system has received the image successfully and would normally process it through an AI vision model to provide detailed insights about its contents, objects, colors, composition, and any text present.`,
-      model: model || 'vision-analysis-v1',
-      confidence: 0.85,
-      detectedObjects: [
-        { name: 'image', confidence: 1.0 }
-      ],
-      timestamp: new Date().toISOString(),
-      metadata: {
-        fileSize: imageFile?.size,
-        mimeType: imageFile?.mimetype,
-        originalName: imageFile?.originalname
-      }
-    };
-
-    res.json(mockAnalysis);
-
+    const imageData = global.imageCache.get(imageId);
+    
+    // Set headers for proper image serving
+    res.set({
+      'Content-Type': imageData.mimeType,
+      'Content-Length': imageData.buffer.length,
+      'Cache-Control': 'public, max-age=3600',
+      'ETag': `"${imageId}"`,
+      'Last-Modified': new Date(imageData.timestamp).toUTCString(),
+      'X-Prompt': imageData.prompt,
+      'X-Dimensions': `${imageData.dimensions.width}x${imageData.dimensions.height}`
+    });
+    
+    res.send(imageData.buffer);
+    
   } catch (error) {
-    console.error('❌ Image analysis error:', error.message);
-    
+    console.error('❌ Image serving error:', error.message);
     res.status(500).json({
-      error: 'Image analysis failed',
-      message: 'Unable to analyze image at this time',
-      timestamp: new Date().toISOString()
+      error: 'Image serving failed',
+      message: 'Unable to serve image'
     });
   }
 });
 
-// IMAGE SEARCH ENDPOINT
-router.post('/search', async (req, res) => {
-  try {
-    const { query, count = 10 } = req.body;
-    
-    if (!query || query.trim().length === 0) {
-      return res.status(400).json({
-        error: 'Search query is required',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Generate multiple images based on search query
-    const imagePrompts = generateImageSearchPrompts(query, count);
-    const imageResults = [];
-
-    for (let i = 0; i < Math.min(imagePrompts.length, count); i++) {
-      try {
-        const response = await axios.post('http://localhost:3001/api/pollinations/generate-image', {
-          prompt: imagePrompts[i],
-          width: 512,
-          height: 512,
-          model: 'flux',
-          enhance: true
-        });
-
-        imageResults.push({
-          id: `img_${i + 1}`,
-          url: response.data.imageUrl,
-          prompt: imagePrompts[i],
-          title: `${query} - Variation ${i + 1}`,
-          description: `AI-generated image for: ${imagePrompts[i]}`,
-          dimensions: response.data.dimensions,
-          timestamp: new Date().toISOString()
-        });
-      } catch (error) {
-        console.error(`Failed to generate image ${i + 1}:`, error.message);
-      }
-    }
-
-    res.json({
-      query: query,
-      results: imageResults,
-      totalResults: imageResults.length,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('❌ Image search error:', error.message);
-    
-    res.status(500).json({
-      error: 'Image search failed',
-      message: 'Unable to search images at this time',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// PROMPT ENHANCEMENT ENDPOINT
-router.post('/enhance-prompt', async (req, res) => {
-  try {
-    const { prompt } = req.body;
-    
-    if (!prompt || prompt.trim().length === 0) {
-      return res.status(400).json({
-        error: 'Prompt is required',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    const enhancedPrompt = await enhancePromptInternal(prompt);
-
-    res.json({
-      originalPrompt: prompt,
-      enhancedPrompt: enhancedPrompt,
-      improvements: [
-        'Added artistic style descriptors',
-        'Enhanced lighting and composition details',
-        'Improved color and mood specifications',
-        'Added technical quality parameters'
-      ],
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    console.error('❌ Prompt enhancement error:', error.message);
-    
-    res.status(500).json({
-      error: 'Prompt enhancement failed',
-      message: 'Unable to enhance prompt at this time',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// UTILITY FUNCTIONS
-
-async function enhancePromptInternal(prompt) {
-  // Enhanced prompt engineering for better image generation
+// Enhanced prompt function
+function enhancePrompt(prompt) {
+  // Add artistic enhancements
   const enhancements = [
     'highly detailed',
-    'professional photography',
-    'cinematic lighting',
-    '8k resolution',
+    'professional quality',
+    'vibrant colors',
     'sharp focus',
-    'vibrant colors'
+    '8k resolution'
   ];
-
-  // Add style and quality enhancements
+  
   let enhanced = prompt;
   
-  // Add artistic enhancements if not already present
-  if (!prompt.toLowerCase().includes('detailed')) {
+  // Add quality enhancements if not present
+  if (!prompt.toLowerCase().includes('detail')) {
     enhanced += ', highly detailed';
   }
   
   if (!prompt.toLowerCase().includes('quality') && !prompt.toLowerCase().includes('resolution')) {
-    enhanced += ', high quality, 8k resolution';
+    enhanced += ', professional quality, 8k resolution';
   }
   
-  if (!prompt.toLowerCase().includes('lighting')) {
-    enhanced += ', professional lighting';
+  if (!prompt.toLowerCase().includes('color')) {
+    enhanced += ', vibrant colors';
   }
-
+  
   return enhanced;
 }
 
-function generateImageSearchPrompts(query, count) {
-  const basePrompt = query;
-  const variations = [
-    `${basePrompt}, photorealistic style`,
-    `${basePrompt}, artistic illustration`,
-    `${basePrompt}, digital art style`,
-    `${basePrompt}, minimalist design`,
-    `${basePrompt}, vintage aesthetic`,
-    `${basePrompt}, modern contemporary`,
-    `${basePrompt}, abstract interpretation`,
-    `${basePrompt}, detailed close-up`,
-    `${basePrompt}, wide angle view`,
-    `${basePrompt}, dramatic lighting`
-  ];
-
-  return variations.slice(0, count);
-}
-
-// Add request timing middleware
-router.use((req, res, next) => {
-  req.startTime = Date.now();
-  next();
+// Test NLP parsing endpoint
+router.post('/parse-prompt', (req, res) => {
+  try {
+    const { prompt } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+    
+    const parsed = parseImagePrompt(prompt);
+    
+    res.json({
+      success: true,
+      originalInput: prompt,
+      parsed: parsed,
+      enhanced: enhancePrompt(parsed.prompt),
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      error: 'Parsing failed',
+      message: error.message
+    });
+  }
 });
+
+module.exports = router;
 
 module.exports = router;
