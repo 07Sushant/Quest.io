@@ -1,6 +1,6 @@
 # 🚨 Dear Recruiter 🚨
 
-# ⚠️ To prevent copy and malpractice, **only the project architecture is public**.  
+# ⚠️ To prevent copy and malpractice, **only the project architecture is public**. Kindly Watch the Video Till End
 # The **entire codebase is kept private**.  and also shared with the company in ZIP
 
 # 👉 To view the full project:  
