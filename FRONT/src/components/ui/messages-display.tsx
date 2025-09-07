@@ -9,6 +9,8 @@ import { parseMessageContent, MessageBlock } from '@/lib/message-parser'
 import { AudioPlayer } from './audio-player'
 import { EnhancedImageDisplay } from './enhanced-image-display'
 import { ImageGenerationLoading } from './image-generation-loading'
+import { WebSearchLoading } from './web-search-loading'
+import { WebSearchSources } from './web-search-sources'
 
 interface Message {
   id: string
@@ -23,6 +25,15 @@ interface Message {
   dimensions?: { width: number; height: number }
   type?: string
   isGeneratingImage?: boolean
+  mode?: string
+  sources?: Array<{
+    title: string
+    url: string
+    snippet: string
+    domain?: string
+    ai_score?: number
+    relevance_reason?: string
+  }>
 }
 
 interface MessagesDisplayProps {
@@ -33,6 +44,7 @@ interface MessagesDisplayProps {
   onMessagesUpdate?: (messages: Message[]) => void
   onAudioPlayingChange?: (isPlaying: boolean) => void
   bottomSpacerPx?: number
+  searchMode?: string
 }
 
 export function MessagesDisplay({ 
@@ -42,20 +54,41 @@ export function MessagesDisplay({
   className = '',
   onMessagesUpdate,
   onAudioPlayingChange,
-  bottomSpacerPx = 0
+  bottomSpacerPx = 0,
+  searchMode = 'ai'
 }: MessagesDisplayProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const lastProcessedQuery = useRef<string>('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
 
-  // Scroll to bottom when new messages are added
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  // Scroll helpers: only auto-scroll if user is near bottom
+  const scrollToBottom = (smooth = true) => {
+    if (smooth) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    else messagesEndRef.current?.scrollIntoView()
   }
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    if (isAtBottom) {
+      scrollToBottom(true)
+    }
+  }, [messages, isAtBottom])
+
+  // Track scroll position to avoid locking user scroll
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onScroll = () => {
+      const threshold = 80 // px from bottom to consider "at bottom"
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+      setIsAtBottom(atBottom)
+    }
+    el.addEventListener('scroll', onScroll)
+    // Initialize state
+    onScroll()
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
 
   // Add messages when new query and response arrive
   useEffect(() => {
@@ -85,7 +118,9 @@ export function MessagesDisplay({
       contentType: newResponse.contentType,
       originalInput: newResponse.originalInput,
       dimensions: newResponse.dimensions,
-      type: newResponse.type
+      type: newResponse.type,
+      mode: newResponse.mode || searchMode,
+      sources: newResponse.sources || []
     }
 
     // Vision preview message injection: if newResponse.images exist and content is a preview marker
@@ -117,7 +152,14 @@ export function MessagesDisplay({
   }, [newQuery, newResponse, isSearching, onMessagesUpdate])
 
   return (
-    <div className={`flex-1 overflow-y-auto px-4 py-6 ${className}`} style={{ paddingBottom: (bottomSpacerPx || 0) + 16 }}>
+    <div
+      ref={containerRef}
+      className={`flex-1 overflow-y-auto px-4 py-6 ${className}`}
+      style={{
+        paddingBottom: (bottomSpacerPx || 0) + 64, // extra bottom room so content isn't hidden
+        scrollPaddingBottom: (bottomSpacerPx || 0) + 96,
+      }}
+    >
       <div className="max-w-4xl mx-auto space-y-6">
         <AnimatePresence>
           {messages.map((message, index) => (
@@ -230,6 +272,15 @@ export function MessagesDisplay({
                       />
                     </div>
                   )}
+
+                  {/* Web Search Sources - Only show for web search mode and assistant messages */}
+                  {message.role === 'assistant' && message.mode === 'web' && message.sources && message.sources.length > 0 && (
+                    <WebSearchSources 
+                      sources={message.sources} 
+                      query={newQuery || ''} 
+                      className="mt-4"
+                    />
+                  )}
                   
                   <p className="text-xs opacity-60 mt-3">
                     {message.timestamp.toLocaleTimeString()}
@@ -254,15 +305,21 @@ export function MessagesDisplay({
               </div>
               
               <div className="pt-2">
-                <div className="flex items-center space-x-3">
-                  <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                    <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                  </div>
-                </div>
-                <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">AI is thinking...</p>
+                {searchMode === 'web' ? (
+                  <WebSearchLoading show={isSearching} query={newQuery} />
+                ) : (
+                  <>
+                    <div className="flex items-center space-x-3">
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                        <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      </div>
+                    </div>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">Questing...</p>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>
@@ -285,6 +342,8 @@ export function MessagesDisplay({
         
         {/* Scroll anchor */}
         <div ref={messagesEndRef} />
+        {/* Bottom spacer to allow comfortable scroll beyond last message */}
+        <div style={{ height: 160 }} />
       </div>
     </div>
   )

@@ -300,6 +300,7 @@ export default function HomePage() {
                   onAudioPlayingChange={setIsAudioPlaying}
                   className="h-full"
                   bottomSpacerPx={footerHeight + 48}
+                  searchMode={lastResponse?.mode || 'ai'}
                 />
               </div>
 
