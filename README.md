@@ -5,7 +5,7 @@
 
 # 👉 To view the full project:  
 # - 📺 [Watch on YouTube](https://youtu.be/eqwOkB9NeG4)  
-# - 📩 Or **request access** directly from me.  
+# - 📩 Or **request access** directly from me. Tap on picture and watch it 
 
 # [![Watch Demo](https://raw.githubusercontent.com/07Sushant/dump/main/P1%20-%20frame%20at%200m15s.jpg)](https://youtu.be/eqwOkB9NeG4)
 
